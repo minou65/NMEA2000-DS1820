@@ -1,18 +1,29 @@
 # Temperatur Monitor
 
-## Default Password
+## NMEA 2000
+
+The following PGN's are send
+- 130310
+- 130311
+- 130312
+
+Temperatur sources are Maincabin and Outside
+
+## WiFi
+
+### Default Password
 
 When not connected to an AP the default password is 123456789
 
-## Default IP address
+### Default IP address
 
 When in AP mode, the default IP address is 192.168.4.1
 
-## OTA 
+### OTA 
 OTA is enabled, use default IP address or if connected to a AP the correct address.
 Port is the default port.
 
-## Configuration options
+### Configuration options
 
 After the first boot, there are some values needs to be set up.
 These items are maked with __*__ (star) in the list below.
@@ -36,7 +47,7 @@ to connect to. __*__
 - __WiFi password__ - The password of the network above. Note, that
 unsecured passwords are not supported in your protection. __*__
 
-## Blinking codes
+### Blinking codes
 
 Prevoius chapters were mentioned blinking patterns, now here is a
 table summarize the menaning of the blink codes.
@@ -49,7 +60,7 @@ network around it. You can connect to the device with your smartphone
 WiFi network.
 - __Mostly off with occasional short flash__ - The device is online.
 
-## Reset
+### Reset
 
 When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 password to buld an AP. (E.g. in case of lost password)
