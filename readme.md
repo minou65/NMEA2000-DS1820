@@ -73,7 +73,7 @@ Some pictures from the assabled hardware
 
 Depending on the number of connected sensors, the source can be selected for up to 4 sensors.
 
-<img title="settings" src="/img/settings.png">
+<img title="settings" src="/img/settings-temperatur.png">
 
 ## WiFi <a name="wifi"></a>
 
