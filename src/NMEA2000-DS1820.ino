@@ -23,16 +23,14 @@
 
 // Set time offsets
 #define SlowDataUpdatePeriod 1000  // Time between CAN Messages sent
-#define TempSendOffset 0
+#define TempSendOffset1 100
+#define TempSendOffset2 200
+#define TempSendOffset3 300
+#define TempSendOffset4 400
 
-#define OutsideTemperature 0
-#define CabinTemperature 1
-
-double gOutsideTemperature = 0;
-double gCabinTemperature = 0;
 uint8_t gN2KSource = 22;
 
-char Version[] = "0.0.0.7 (2023-07-02)"; // Manufacturer's Software version code
+char Version[] = "0.0.0.8 (2023-08-26)"; // Manufacturer's Software version code
 
 // Setup a OneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);
@@ -43,14 +41,15 @@ TaskHandle_t TaskHandle;
 // Pass OneWire reference to Dallas Temperature
 DallasTemperature sensors(&oneWire);
 
+int8_t gDeviceCount = 1;
+
 // List here messages your device will transmit.
 const unsigned long TransmitMessages[] PROGMEM = { 
-                                                    130310L,
-                                                    130311L,
-                                                    130312L,
-                                                   0 
-                                                 };
-
+    130310L, // Environmental Parameters - DEPRECATED
+    130312L, // Temperature - DEPRECATED
+    130316L, // Temperature, Extended Range
+    0 
+};
 
 void setup() {
     uint8_t chipid[6];
@@ -65,16 +64,20 @@ void setup() {
     Serial.begin(115200);
     delay(10);
 
-    // init wifi
-    wifiInit();
-
     // init sensors
     sensors.begin(); 
     sensors.setResolution(12);
 
+    gDeviceCount = sensors.getDeviceCount();
+
+    gDeviceCount = 4;
+
+    // init wifi
+    wifiInit();
+
     // Create GetTemperature task for core 0, loop() runs on core 1
     xTaskCreatePinnedToCore(
-        GetTemperature, /* Function to implement the task */
+        loop2, /* Function to implement the task */
         "TaskHandle", /* Name of the task */
         10000,  /* Stack size in words */
         NULL,  /* Task input parameter */
@@ -131,19 +134,7 @@ void setup() {
 
 
     NMEA2000.Open();
-}
 
-void GetTemperature(void* parameter) {
-    float tmp = 0;
-    for (;;) {   // Endless loop
-        sensors.requestTemperatures(); // Send the command to get temperatures
-        vTaskDelay(100);
-        gCabinTemperature = sensors.getTempCByIndex(CabinTemperature);
-        gOutsideTemperature = sensors.getTempCByIndex(OutsideTemperature);
-        if (gCabinTemperature == -127) gCabinTemperature = 0;
-        if (gOutsideTemperature == -127) gOutsideTemperature = 0;
-        vTaskDelay(100);
-    }
 }
 
 bool IsTimeToUpdate(unsigned long NextUpdate) {
@@ -158,46 +149,123 @@ void SetNextUpdate(unsigned long& NextUpdate, unsigned long Period) {
     while (NextUpdate < millis()) NextUpdate += Period;
 }
 
-void SendN2kTemperature(void) {
-    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset);
+void SendN2kTemperatur(uint8_t index, unsigned long SlowDataUpdated) {
+
     tN2kMsg N2kMsg;
+
+    Serial.print(String( TempSourceNames[gTemperaturs[index].Source] ));
+    Serial.printf(": %3.1f °C \n", gTemperaturs[index].Value);
+
+    SetN2kPGN130312(N2kMsg, 255, 255, gTemperaturs[index].Source, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
+    NMEA2000.SendMsg(N2kMsg);
+
+    SetN2kPGN130316(N2kMsg, 255, 255, gTemperaturs[index].Source, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
+    NMEA2000.SendMsg(N2kMsg);
+
+    if (gTemperaturs[index].Source == N2kts_OutsideTemperature) {
+        SetN2kPGN130310(N2kMsg, 255, N2kDoubleNA, CToKelvin(gTemperaturs[index].Value));
+        NMEA2000.SendMsg(N2kMsg);
+    }
+
+    if (gTemperaturs[index].Source == N2kts_SeaTemperature) {
+        SetN2kPGN130310(N2kMsg, 255, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg);
+    }
+
+}
+
+void SendN2kTemperature1(void) {
+    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset1);
+
 
     if (IsTimeToUpdate(SlowDataUpdated)) {
         SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
-
-        Serial.printf("Cabin temperature  : %3.1f �C \n", gCabinTemperature);
-        Serial.printf("Outside temperature: %3.1f �C \n", gOutsideTemperature);
-
-
-        // Set N2K message
-        SetN2kTemperature(N2kMsg, 255, 1, N2kts_MainCabinTemperature, CToKelvin(gCabinTemperature));
-
-        // Send message
-        NMEA2000.SendMsg(N2kMsg);
-
-        // Set N2K message
-        SetN2kTemperature(N2kMsg, 255, 2, N2kts_OutsideTemperature, CToKelvin(gOutsideTemperature));
-
-        // Send message
-        NMEA2000.SendMsg(N2kMsg);
-
-        // Set N2K message
-        SetN2kOutsideEnvironmentalParameters(N2kMsg, 255, N2kDoubleNA, CToKelvin(gOutsideTemperature));
-
-        // Send message
-        NMEA2000.SendMsg(N2kMsg);
+        if (gDeviceCount >= 1) {
+            SendN2kTemperatur(0, SlowDataUpdated);
+        }
     }
 }
 
+void SendN2kTemperature2(void) {
+    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset2);
+
+
+    if (IsTimeToUpdate(SlowDataUpdated)) {
+        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
+        if (gDeviceCount >= 2) {
+            SendN2kTemperatur(1, SlowDataUpdated);
+        }
+    }
+}
+
+void SendN2kTemperature3(void) {
+    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset3);
+    
+
+    if (IsTimeToUpdate(SlowDataUpdated)) {
+        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
+        if (gDeviceCount >= 3) {
+            SendN2kTemperatur(2, SlowDataUpdated);
+        }
+    }
+}
+
+void SendN2kTemperature4(void) {
+    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset4);
+
+    if (IsTimeToUpdate(SlowDataUpdated)) {
+        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
+        if (gDeviceCount >= 4) {
+            SendN2kTemperatur(3, SlowDataUpdated);
+        }
+    }
+}
+
+void CheckN2kSourceAddressChange() {
+    uint8_t SourceAddress = NMEA2000.GetN2kSource();
+
+    if (SourceAddress != gN2KSource) {
+        SetN2kSourceValue(SourceAddress);
+#ifdef DEBUG_MSG
+        Serial.printf("Address Change: New Address=%d\n", SourceAddress);
+#endif // DEBUG_MSG
+    }
+}
 
 void loop() {
     wifiLoop();
-    SendN2kTemperature();
+
+    SendN2kTemperature1();
+    SendN2kTemperature2();
+    SendN2kTemperature3();
+    SendN2kTemperature4();
+
     NMEA2000.ParseMessages();
 
     // Dummy to empty input buffer to avoid board to stuck with e.g. NMEA Reader
     if (Serial.available()) {
         Serial.read();
+    }
+}
+
+double GetTemperatur(int Index) {
+    double T;
+    T = sensors.getTempCByIndex(Index);
+    if (T == -127) T = 0;
+    return T;
+}
+
+void loop2(void* parameter) {
+    uint8_t index = 0;
+    for (;;) {   // Endless loop
+        sensors.requestTemperatures(); // Send the command to get temperatures
+        vTaskDelay(100);
+        gTemperaturs[index].Value = GetTemperatur(index);
+
+        index++;
+
+        if (index > gDeviceCount - 1) index = 0;
+
     }
 }
 

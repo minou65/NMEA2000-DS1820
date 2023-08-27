@@ -1,7 +1,3 @@
-// 
-// 
-// 
-
 #define DEBUG_WIFI(m) SERIAL_DBG.print(m)
 
 #include <Arduino.h>
@@ -27,18 +23,93 @@
 
 
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
-const char thingName[] = "NMEA-TemperaturMonitor";
+const char thingName[] = "NMEA-DS1820";
+
+tTemperatur gTemperaturs[4] = {
+    {N2kts_SeaTemperature, 0.0},
+    {N2kts_OutsideTemperature, 0.0},
+    {N2kts_InsideTemperature, 0.0},
+    {N2kts_EngineRoomTemperature, 0.0} };
 
 // -- Method declarations.
 void handleRoot();
+void convertParams();
 
 // -- Callback methods.
+void configSaved();
 void wifiConnected();
+
+bool gParamsChanged = true;
 
 DNSServer dnsServer;
 WebServer server(80);
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
+
+IotWebConfParameterGroup NMEAGroup = IotWebConfParameterGroup("NMEA Settings", "");
+IotWebConfParameterGroup TempSourceGroup = IotWebConfParameterGroup("Temperatur source", "");
+
+// IotWebConfParameterGroup sysConfGroup = IotWebConfParameterGroup("SysConf", "NMEA Settings", "Temperatur source");
+
+char N2KSourceValue[NUMBER_LEN];
+IotWebConfNumberParameter N2KSource = IotWebConfNumberParameter(
+    "N2KSource", 
+    "N2KSource", 
+    N2KSourceValue, 
+    NUMBER_LEN, 
+    "22", 
+    "1..100", 
+    "min='1' max='100' step='1'"
+);
+
+
+char TempSourceValue1[STRING_LEN];
+IotWebConfSelectParameter TempSource1 = IotWebConfSelectParameter("Sensor 1",
+    "TempSource1",
+    TempSourceValue1,
+    STRING_LEN,
+    (char*)TempSourceValues,
+    (char*)TempSourceNames,
+    sizeof(TempSourceValues) / STRING_LEN,
+    STRING_LEN,
+    TempSourceNames[gTemperaturs[0].Source]
+);
+
+char TempSourceValue2[STRING_LEN];
+IotWebConfSelectParameter TempSource2 = IotWebConfSelectParameter("Sensor 2",
+    "TempSource2",
+    TempSourceValue2,
+    STRING_LEN,
+    (char*)TempSourceValues,
+    (char*)TempSourceNames,
+    sizeof(TempSourceValues) / STRING_LEN,
+    STRING_LEN,
+    TempSourceNames[gTemperaturs[1].Source]
+);
+
+char TempSourceValue3[STRING_LEN];
+IotWebConfSelectParameter TempSource3 = IotWebConfSelectParameter("Sensor 3",
+    "TempSource3",
+    TempSourceValue3,
+    STRING_LEN,
+    (char*)TempSourceValues,
+    (char*)TempSourceNames,
+    sizeof(TempSourceValues) / STRING_LEN,
+    STRING_LEN,
+    TempSourceNames[gTemperaturs[2].Source]
+);
+
+char TempSourceValue4[STRING_LEN];
+IotWebConfSelectParameter TempSource4 = IotWebConfSelectParameter("Sensor 4",
+    "TempSource4",
+    TempSourceValue4,
+    STRING_LEN,
+    (char*)TempSourceValues,
+    (char*)TempSourceNames,
+    sizeof(TempSourceValues) / STRING_LEN,
+    STRING_LEN,
+    TempSourceNames[gTemperaturs[3].Source]
+);
 
 void wifiInit() {
     Serial.begin(115200);
@@ -49,10 +120,36 @@ void wifiInit() {
     iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL);
     iotWebConf.setConfigPin(CONFIG_PIN);
 
+    NMEAGroup.addItem(&N2KSource);
+
+    TempSourceGroup.addItem(&TempSource1);
+
+    if (gDeviceCount >= 2) {
+        TempSourceGroup.addItem(&TempSource2);
+    }
+
+    if (gDeviceCount >= 3) {
+        TempSourceGroup.addItem(&TempSource3);
+    }
+
+    if (gDeviceCount >= 4) {
+        TempSourceGroup.addItem(&TempSource4);
+    }
+
+    iotWebConf.addParameterGroup(&NMEAGroup);
+    iotWebConf.addParameterGroup(&TempSourceGroup);
+
+    iotWebConf.setConfigSavedCallback(&configSaved);
     iotWebConf.setWifiConnectionCallback(&wifiConnected);
 
+    iotWebConf.getApTimeoutParameter()->visible = true;
+    
     // -- Initializing the configuration.
     iotWebConf.init();
+
+    // NMEAGroup.visible = false;
+
+    convertParams();
 
     // -- Set up required URL handlers on the web server.
     server.on("/", handleRoot);
@@ -82,7 +179,7 @@ void handleRoot()
     }
 
     String page = HTML_Start_Doc;
-    page.replace("{v}", "Temperatur monitor");
+    page.replace("{v}", iotWebConf.getThingName());
     page += "<style>";
     page += ".de{background-color:#ffaaaa;} .em{font-size:0.8em;color:#bb0000;padding-bottom:0px;} .c{text-align: center;} div,input,select{padding:5px;font-size:1em;} input{width:95%;} select{width:100%} input[type=checkbox]{width:auto;scale:1.5;margin:10px;} body{text-align: center;font-family:verdana;} button{border:0;border-radius:0.3rem;background-color:#16A1E7;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;} fieldset{border-radius:0.3rem;margin: 0px;}";
     // page.replace("center", "left");
@@ -97,8 +194,9 @@ void handleRoot()
         page.replace("{l}", "Temperaturs");
             page += HTML_Start_Table;
 
-            page += "<tr><td align=left>Cabin:</td><td>" + String(gCabinTemperature) + "°C" + "</td></tr>";
-            page += "<tr><td align=left>Outside:</td><td>" + String(gOutsideTemperature) + "°C" + "</td></tr>";
+            for (uint8_t i = 0; i < gDeviceCount; i++) {
+                page += "<tr><td align=left>" + String(TempSourceNames[gTemperaturs[i].Source]) + ":</td><td>" + String(gTemperaturs[i].Value) + "&deg;C" + "</td></tr>";
+            }
 
         page += HTML_End_Table;
         page += HTML_End_Fieldset;
@@ -118,4 +216,23 @@ void handleRoot()
 
 
     server.send(200, "text/html", page);
+}
+
+void SetN2kSourceValue(uint8_t value) {
+    String temp = String(value);
+    strcpy(N2KSourceValue, temp.c_str());
+}
+
+void convertParams() {
+    gTemperaturs[0].Value = tN2kTempSource(atoi(TempSourceValue1));
+    gTemperaturs[1].Value = tN2kTempSource(atoi(TempSourceValue2));
+    gTemperaturs[2].Value = tN2kTempSource(atoi(TempSourceValue3));
+    gTemperaturs[3].Value = tN2kTempSource(atoi(TempSourceValue4));
+
+    gN2KSource = atoi(N2KSourceValue);
+}
+
+void configSaved() {
+    convertParams();
+    gParamsChanged = true;
 }

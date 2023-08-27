@@ -9,6 +9,47 @@
 	#include "WProgram.h"
 #endif
 
+#define STRING_LEN 128
+#define NUMBER_LEN 32
+
+
+static char TempSourceValues[][STRING_LEN] = {
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "11",
+    "12",
+    "13",
+    "14",
+    "15"
+};
+
+static char TempSourceNames[][STRING_LEN] = {
+    "Sea water temperature",
+    "Outside temperature",
+    "Inside temperature",
+    "Engine room temperature",
+    "Main cabin temperature",
+    "Live well temperature",
+    "Bait well temperature",
+    "Refrigeration temperature",
+    "Heating system temperature",
+    "Dew point temperature",
+    "Apparent wind chill temperature",
+    "Theoretical wind chill temperature",
+    "Heat index temperature",
+    "Freezer temperature",
+    "Exhaust gas temperature",
+    "Shaft seal temparature"
+};
 
 #define HTML_Start_Doc "<!DOCTYPE html>\
     <html lang=\"en\"><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=no\"/>\
@@ -29,7 +70,7 @@
 const char wifiInitialApPassword[] = "123456789";
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
-#define CONFIG_VERSION "A1"
+#define CONFIG_VERSION "A2"
 
 // -- When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 //      password to buld an AP. (E.g. in case of lost password)
@@ -48,5 +89,7 @@ const char wifiInitialApPassword[] = "123456789";
 
 extern void wifiInit();
 extern void wifiLoop();
+
+extern void SetN2kSourceValue(uint8_t value);
 
 #endif
