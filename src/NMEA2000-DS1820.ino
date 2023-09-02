@@ -30,7 +30,7 @@
 
 uint8_t gN2KSource = 22;
 
-char Version[] = "0.0.0.8 (2023-08-26)"; // Manufacturer's Software version code
+char Version[] = "0.0.0.9 (2023-09-02)"; // Manufacturer's Software version code
 
 // Setup a OneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);

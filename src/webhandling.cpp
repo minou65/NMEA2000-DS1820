@@ -46,8 +46,8 @@ WebServer server(80);
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
 
-IotWebConfParameterGroup NMEAGroup = IotWebConfParameterGroup("NMEA Settings", "");
-IotWebConfParameterGroup TempSourceGroup = IotWebConfParameterGroup("Temperatur source", "");
+IotWebConfParameterGroup NMEAGroup = IotWebConfParameterGroup("NMEAGroup", "NMEA Settings");
+IotWebConfParameterGroup TempSourceGroup = IotWebConfParameterGroup("TemperaturGroup", "Temperatur source");
 
 // IotWebConfParameterGroup sysConfGroup = IotWebConfParameterGroup("SysConf", "NMEA Settings", "Temperatur source");
 
