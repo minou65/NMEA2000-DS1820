@@ -1,18 +1,20 @@
 # NMEA2000-DS1820 Temperatur Monitor
 
 ## Table of contents
-- [Description](#description)
-- [NMEA 2000](#nmea2000)
-- [Librarys](#libs)
-- [Required hardware](#hardware)
-- [Settings](#settings)
-- [WiFi](#wifi)
-	- [Default password](#wifipassword)
-	- [Default IP address](#wifiipaddress)
-	- [OTA](#wifiota)
-	- [Configuration options](#wificonfiguration)
-	- [Blinking codes](#wifiblinkingcodes)
-	- [Reset](#wifireset)
+- [NMEA2000-DS1820 Temperatur Monitor](#nmea2000-ds1820-temperatur-monitor)
+	- [Table of contents](#table-of-contents)
+	- [Description ](#description-)
+	- [NMEA 2000 ](#nmea-2000-)
+	- [Librarys ](#librarys-)
+	- [Required hardware ](#required-hardware-)
+	- [Settings ](#settings-)
+	- [WiFi ](#wifi-)
+		- [Default Password ](#default-password-)
+		- [Default IP address ](#default-ip-address-)
+		- [OTA ](#ota-)
+		- [Configuration options ](#configuration-options-)
+		- [Blinking codes ](#blinking-codes-)
+		- [Reset ](#reset-)
 
 ## Description <a name="description"></a>
 
