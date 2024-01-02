@@ -14,9 +14,6 @@
 #include <DNSServer.h>
 
 #include <IotWebConf.h>
-#include <IotWebConfUsing.h> // This loads aliases for easier class names.
-#include <IotWebConfTParameter.h>
-#include <IotWebConfOptionalGroup.h>
 
 #include "common.h"
 #include "webhandling.h"
@@ -53,8 +50,8 @@ iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instanc
 iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..254", "min='1' max='255' step='1'");
 
 char TempSourceValue1[STRING_LEN];
-IotWebConfParameterGroup TempSourceGroup = IotWebConfParameterGroup("TemperaturGroup", "Temperatur source");
-IotWebConfSelectParameter TempSource1 = IotWebConfSelectParameter("Sensor 1",
+iotwebconf::ParameterGroup TempSourceGroup = iotwebconf::ParameterGroup("TemperaturGroup", "Temperatur source");
+iotwebconf::SelectParameter TempSource1 = iotwebconf::SelectParameter("Sensor 1",
     "TempSource1",
     TempSourceValue1,
     STRING_LEN,
@@ -66,7 +63,7 @@ IotWebConfSelectParameter TempSource1 = IotWebConfSelectParameter("Sensor 1",
 );
 
 char TempSourceValue2[STRING_LEN];
-IotWebConfSelectParameter TempSource2 = IotWebConfSelectParameter("Sensor 2",
+iotwebconf::SelectParameter TempSource2 = iotwebconf::SelectParameter("Sensor 2",
     "TempSource2",
     TempSourceValue2,
     STRING_LEN,
@@ -78,7 +75,7 @@ IotWebConfSelectParameter TempSource2 = IotWebConfSelectParameter("Sensor 2",
 );
 
 char TempSourceValue3[STRING_LEN];
-IotWebConfSelectParameter TempSource3 = IotWebConfSelectParameter("Sensor 3",
+iotwebconf::SelectParameter TempSource3 = iotwebconf::SelectParameter("Sensor 3",
     "TempSource3",
     TempSourceValue3,
     STRING_LEN,
@@ -90,7 +87,7 @@ IotWebConfSelectParameter TempSource3 = IotWebConfSelectParameter("Sensor 3",
 );
 
 char TempSourceValue4[STRING_LEN];
-IotWebConfSelectParameter TempSource4 = IotWebConfSelectParameter("Sensor 4",
+iotwebconf::SelectParameter TempSource4 = iotwebconf::SelectParameter("Sensor 4",
     "TempSource4",
     TempSourceValue4,
     STRING_LEN,
