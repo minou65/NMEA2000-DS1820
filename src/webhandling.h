@@ -12,7 +12,6 @@
 #define STRING_LEN 128
 #define NUMBER_LEN 32
 
-
 static char TempSourceValues[][STRING_LEN] = {
     "0",
     "1",
@@ -23,10 +22,10 @@ static char TempSourceValues[][STRING_LEN] = {
     "6",
     "7",
     "8",
-    "9",
-    "10",
-    "11",
-    "12",
+//    "9",
+//    "10",
+//    "11",
+//    "12",
     "13",
     "14",
     "15"
@@ -42,14 +41,15 @@ static char TempSourceNames[][STRING_LEN] = {
     "Bait well temperature",
     "Refrigeration temperature",
     "Heating system temperature",
-    "Dew point temperature",
-    "Apparent wind chill temperature",
-    "Theoretical wind chill temperature",
-    "Heat index temperature",
+//    "Dew point temperature",
+//    "Apparent wind chill temperature",
+//    "Theoretical wind chill temperature",
+//    "Heat index temperature",
     "Freezer temperature",
     "Exhaust gas temperature",
     "Shaft seal temparature"
 };
+
 
 #define HTML_Start_Doc "<!DOCTYPE html>\
     <html lang=\"en\"><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=no\"/>\
