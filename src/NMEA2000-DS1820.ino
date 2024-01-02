@@ -27,6 +27,8 @@ tN2kSyncScheduler TemperatureScheduler3(false, 2000, 520);
 tN2kSyncScheduler TemperatureScheduler4(false, 2000, 530);
 
 uint8_t gN2KSource = 22;
+uint8_t gN2KInstance = 255;
+uint8_t gN2KSID = 255;
 
 char Version[] = "0.0.0.10 (2023-09-02)"; // Manufacturer's Software version code
 
@@ -152,19 +154,19 @@ void SendN2kTemperatur(uint8_t index) {
     Serial.printf(": %3.1f °C \n", gTemperaturs[index].Value);
 #endif // DEBUG_MSG
 
-    SetN2kPGN130312(N2kMsg, 255, 255, gTemperaturs[index].Source, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
+    SetN2kPGN130312(N2kMsg, gN2KSID, gN2KInstance, gTemperaturs[index].Source, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
     NMEA2000.SendMsg(N2kMsg);
 
-    SetN2kPGN130316(N2kMsg, 255, 255, gTemperaturs[index].Source, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
+    SetN2kPGN130316(N2kMsg, gN2KSID, gN2KInstance, gTemperaturs[index].Source, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
     NMEA2000.SendMsg(N2kMsg);
 
     if (gTemperaturs[index].Source == N2kts_OutsideTemperature) {
-        SetN2kPGN130310(N2kMsg, 255, N2kDoubleNA, CToKelvin(gTemperaturs[index].Value));
+        SetN2kPGN130310(N2kMsg, gN2KSID, N2kDoubleNA, CToKelvin(gTemperaturs[index].Value));
         NMEA2000.SendMsg(N2kMsg);
     }
 
     if (gTemperaturs[index].Source == N2kts_SeaTemperature) {
-        SetN2kPGN130310(N2kMsg, 255, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
+        SetN2kPGN130310(N2kMsg, gN2KSID, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
         NMEA2000.SendMsg(N2kMsg);
     }
 
@@ -206,7 +208,6 @@ void CheckN2kSourceAddressChange() {
     uint8_t SourceAddress = NMEA2000.GetN2kSource();
 
     if (SourceAddress != gN2KSource) {
-        SetN2kSourceValue(SourceAddress);
 #ifdef DEBUG_MSG
         Serial.printf("Address Change: New Address=%d\n", SourceAddress);
 #endif // DEBUG_MSG

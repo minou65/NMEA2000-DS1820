@@ -46,24 +46,14 @@ WebServer server(80);
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
 
-IotWebConfParameterGroup NMEAGroup = IotWebConfParameterGroup("NMEAGroup", "NMEA Settings");
-IotWebConfParameterGroup TempSourceGroup = IotWebConfParameterGroup("TemperaturGroup", "Temperatur source");
-
-// IotWebConfParameterGroup sysConfGroup = IotWebConfParameterGroup("SysConf", "NMEA Settings", "Temperatur source");
-
-char N2KSourceValue[NUMBER_LEN];
-IotWebConfNumberParameter N2KSource = IotWebConfNumberParameter(
-    "N2KSource", 
-    "N2KSource", 
-    N2KSourceValue, 
-    NUMBER_LEN, 
-    "22", 
-    "1..100", 
-    "min='1' max='100' step='1'"
-);
-
+char InstanceValue[NUMBER_LEN];
+char SIDValue[NUMBER_LEN];
+iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
+iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
+iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..254", "min='1' max='255' step='1'");
 
 char TempSourceValue1[STRING_LEN];
+IotWebConfParameterGroup TempSourceGroup = IotWebConfParameterGroup("TemperaturGroup", "Temperatur source");
 IotWebConfSelectParameter TempSource1 = IotWebConfSelectParameter("Sensor 1",
     "TempSource1",
     TempSourceValue1,
@@ -120,7 +110,9 @@ void wifiInit() {
     iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL);
     iotWebConf.setConfigPin(CONFIG_PIN);
 
-    NMEAGroup.addItem(&N2KSource);
+    InstanceGroup.addItem(&InstanceParam);
+    InstanceGroup.addItem(&SIDParam);
+    iotWebConf.addParameterGroup(&InstanceGroup);
 
     TempSourceGroup.addItem(&TempSource1);
 
@@ -135,8 +127,6 @@ void wifiInit() {
     if (gDeviceCount >= 4) {
         TempSourceGroup.addItem(&TempSource4);
     }
-
-    iotWebConf.addParameterGroup(&NMEAGroup);
     iotWebConf.addParameterGroup(&TempSourceGroup);
 
     iotWebConf.setConfigSavedCallback(&configSaved);
@@ -218,18 +208,11 @@ void handleRoot()
     server.send(200, "text/html", page);
 }
 
-void SetN2kSourceValue(uint8_t value) {
-    String temp = String(value);
-    strcpy(N2KSourceValue, temp.c_str());
-}
-
 void convertParams() {
     gTemperaturs[0].Value = tN2kTempSource(atoi(TempSourceValue1));
     gTemperaturs[1].Value = tN2kTempSource(atoi(TempSourceValue2));
     gTemperaturs[2].Value = tN2kTempSource(atoi(TempSourceValue3));
     gTemperaturs[3].Value = tN2kTempSource(atoi(TempSourceValue4));
-
-    gN2KSource = atoi(N2KSourceValue);
 }
 
 void configSaved() {

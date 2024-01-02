@@ -90,6 +90,4 @@ const char wifiInitialApPassword[] = "123456789";
 extern void wifiInit();
 extern void wifiLoop();
 
-extern void SetN2kSourceValue(uint8_t value);
-
 #endif

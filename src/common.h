@@ -14,6 +14,8 @@
 #include "N2kMsg.h"
 #include "N2kTypes.h"
 
+extern uint8_t gN2KInstance;
+extern uint8_t gN2KSID;
 extern uint8_t gN2KSource;
 
 extern int8_t gDeviceCount;
