@@ -37,6 +37,7 @@ void configSaved();
 void wifiConnected();
 
 bool gParamsChanged = true;
+bool gSaveParams = false;
 
 DNSServer dnsServer;
 WebServer server(80);
@@ -45,9 +46,11 @@ IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CON
 
 char InstanceValue[NUMBER_LEN];
 char SIDValue[NUMBER_LEN];
+char SourceValue[NUMBER_LEN];
 iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
 iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
-iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..254", "min='1' max='255' step='1'");
+iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
+iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2KSource", "N2KSource", SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
 
 char TempSourceValue1[STRING_LEN];
 iotwebconf::ParameterGroup TempSourceGroup = iotwebconf::ParameterGroup("TemperaturGroup", "Temperatur source");
@@ -109,6 +112,7 @@ void wifiInit() {
 
     InstanceGroup.addItem(&InstanceParam);
     InstanceGroup.addItem(&SIDParam);
+    iotWebConf.addHiddenParameter(&SourceParam);
     iotWebConf.addParameterGroup(&InstanceGroup);
 
     TempSourceGroup.addItem(&TempSource1);
@@ -150,6 +154,16 @@ void wifiLoop() {
     // -- doLoop should be called as frequently as possible.
     iotWebConf.doLoop();
     ArduinoOTA.handle();
+    
+    if (gSaveParams) {
+        Serial.println(F("Parameters are changed,save them"));
+
+        String s = (String)gN2KSource;
+        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
+
+        iotWebConf.saveConfig();
+        gSaveParams = false;
+    }
 }
 
 void wifiConnected() {
@@ -210,6 +224,15 @@ void convertParams() {
     gTemperaturs[1].Value = tN2kTempSource(atoi(TempSourceValue2));
     gTemperaturs[2].Value = tN2kTempSource(atoi(TempSourceValue3));
     gTemperaturs[3].Value = tN2kTempSource(atoi(TempSourceValue4));
+
+    if (atoi(SourceValue) == 0) {
+        Serial.println(F("Incorrect format for source id"));
+        String s = (String)gN2KSource;
+        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
+        iotWebConf.saveConfig();
+    }
+
+    gN2KSource = atoi(SourceValue);
 }
 
 void configSaved() {

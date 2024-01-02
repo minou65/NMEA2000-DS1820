@@ -22,6 +22,7 @@ extern int8_t gDeviceCount;
 
 extern char Version[];
 extern bool gParamsChanged;
+extern bool gSaveParams;
 
 struct tTemperatur {
 	

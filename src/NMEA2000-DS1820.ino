@@ -59,6 +59,18 @@ void OnN2kOpen() {
     TemperatureScheduler4.UpdateNextTime();
 }
 
+void CheckN2kSourceAddressChange() {
+    uint8_t SourceAddress = NMEA2000.GetN2kSource();
+
+    if (SourceAddress != gN2KSource) {
+#ifdef DEBUG_MSG
+        Serial.printf("Address Change: New Address=%d\n", SourceAddress);
+#endif // DEBUG_MSG
+        gN2KSource = SourceAddress;
+        gSaveParams = true;
+    }
+}
+
 void setup() {
     uint8_t chipid[6];
     uint32_t id = 0;
@@ -204,16 +216,6 @@ void SendN2kTemperature4(void) {
     }
 }
 
-void CheckN2kSourceAddressChange() {
-    uint8_t SourceAddress = NMEA2000.GetN2kSource();
-
-    if (SourceAddress != gN2KSource) {
-#ifdef DEBUG_MSG
-        Serial.printf("Address Change: New Address=%d\n", SourceAddress);
-#endif // DEBUG_MSG
-    }
-}
-
 void loop() {
     wifiLoop();
 
@@ -223,6 +225,8 @@ void loop() {
     SendN2kTemperature4();
 
     NMEA2000.ParseMessages();
+
+    CheckN2kSourceAddressChange();
 
     // Dummy to empty input buffer to avoid board to stuck with e.g. NMEA Reader
     if (Serial.available()) {
