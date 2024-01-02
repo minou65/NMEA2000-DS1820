@@ -21,16 +21,14 @@
 #include <N2kMessages.h>
 #include <NMEA2000_CAN.h>
 
-// Set time offsets
-#define SlowDataUpdatePeriod 1000  // Time between CAN Messages sent
-#define TempSendOffset1 100
-#define TempSendOffset2 200
-#define TempSendOffset3 300
-#define TempSendOffset4 400
+tN2kSyncScheduler TemperatureScheduler1(false, 2000, 500);
+tN2kSyncScheduler TemperatureScheduler2(false, 2000, 510);
+tN2kSyncScheduler TemperatureScheduler3(false, 2000, 520);
+tN2kSyncScheduler TemperatureScheduler4(false, 2000, 530);
 
 uint8_t gN2KSource = 22;
 
-char Version[] = "0.0.0.9 (2023-09-02)"; // Manufacturer's Software version code
+char Version[] = "0.0.0.10 (2023-09-02)"; // Manufacturer's Software version code
 
 // Setup a OneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);
@@ -50,6 +48,14 @@ const unsigned long TransmitMessages[] PROGMEM = {
     130316L, // Temperature, Extended Range
     0 
 };
+
+void OnN2kOpen() {
+    // Start schedulers now.
+    TemperatureScheduler1.UpdateNextTime();
+    TemperatureScheduler2.UpdateNextTime();
+    TemperatureScheduler3.UpdateNextTime();
+    TemperatureScheduler4.UpdateNextTime();
+}
 
 void setup() {
     uint8_t chipid[6];
@@ -132,29 +138,19 @@ void setup() {
     // Here we tell library, which PGNs we transmit
     NMEA2000.ExtendTransmitMessages(TransmitMessages);
 
-
+    NMEA2000.SetOnOpen(OnN2kOpen);
     NMEA2000.Open();
 
 }
 
-bool IsTimeToUpdate(unsigned long NextUpdate) {
-    return (NextUpdate < millis());
-}
-
-unsigned long InitNextUpdate(unsigned long Period, unsigned long Offset = 0) {
-    return millis() + Period + Offset;
-}
-
-void SetNextUpdate(unsigned long& NextUpdate, unsigned long Period) {
-    while (NextUpdate < millis()) NextUpdate += Period;
-}
-
-void SendN2kTemperatur(uint8_t index, unsigned long SlowDataUpdated) {
+void SendN2kTemperatur(uint8_t index) {
 
     tN2kMsg N2kMsg;
 
+#ifdef DEBUG_MSG
     Serial.print(String( TempSourceNames[gTemperaturs[index].Source] ));
     Serial.printf(": %3.1f °C \n", gTemperaturs[index].Value);
+#endif // DEBUG_MSG
 
     SetN2kPGN130312(N2kMsg, 255, 255, gTemperaturs[index].Source, CToKelvin(gTemperaturs[index].Value), N2kDoubleNA);
     NMEA2000.SendMsg(N2kMsg);
@@ -175,48 +171,33 @@ void SendN2kTemperatur(uint8_t index, unsigned long SlowDataUpdated) {
 }
 
 void SendN2kTemperature1(void) {
-    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset1);
-
-
-    if (IsTimeToUpdate(SlowDataUpdated)) {
-        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
+    if (TemperatureScheduler1.IsTime()) {
         if (gDeviceCount >= 1) {
-            SendN2kTemperatur(0, SlowDataUpdated);
+            SendN2kTemperatur(0);
         }
     }
 }
 
 void SendN2kTemperature2(void) {
-    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset2);
-
-
-    if (IsTimeToUpdate(SlowDataUpdated)) {
-        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
+    if (TemperatureScheduler2.IsTime()) {
         if (gDeviceCount >= 2) {
-            SendN2kTemperatur(1, SlowDataUpdated);
+            SendN2kTemperatur(1);
         }
     }
 }
 
 void SendN2kTemperature3(void) {
-    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset3);
-    
-
-    if (IsTimeToUpdate(SlowDataUpdated)) {
-        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
+    if (TemperatureScheduler3.IsTime()) {
         if (gDeviceCount >= 3) {
-            SendN2kTemperatur(2, SlowDataUpdated);
+            SendN2kTemperatur(2);
         }
     }
 }
 
 void SendN2kTemperature4(void) {
-    static unsigned long SlowDataUpdated = InitNextUpdate(SlowDataUpdatePeriod, TempSendOffset4);
-
-    if (IsTimeToUpdate(SlowDataUpdated)) {
-        SetNextUpdate(SlowDataUpdated, SlowDataUpdatePeriod);
+    if (TemperatureScheduler4.IsTime()) {
         if (gDeviceCount >= 4) {
-            SendN2kTemperatur(3, SlowDataUpdated);
+            SendN2kTemperatur(3);
         }
     }
 }
