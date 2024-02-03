@@ -2,6 +2,7 @@
 // NMEA http://www.interfacebus.com/NMEA-2000_Standard.html#:~:text=NMEA-2000%20Pin%20Out%20The%20pin%20out%20for%20the,as%20is%20the%20signal%20pair%20%5Bblue%20%2F%20white%5D.
 
 // use the following Pins
+#include "N2kAlertTypes.h"
 #define ESP32_CAN_TX_PIN GPIO_NUM_5  // Set CAN TX port to D5 
 #define ESP32_CAN_RX_PIN GPIO_NUM_4  // Set CAN RX port to D4
 #define ONE_WIRE_BUS GPIO_NUM_22 // Set data wire
@@ -20,11 +21,14 @@
 
 #include <N2kMessages.h>
 #include <NMEA2000_CAN.h>
+#include "N2kAlerts.h"
 
 tN2kSyncScheduler TemperatureScheduler1(false, 2000, 500);
 tN2kSyncScheduler TemperatureScheduler2(false, 2000, 510);
 tN2kSyncScheduler TemperatureScheduler3(false, 2000, 520);
 tN2kSyncScheduler TemperatureScheduler4(false, 2000, 530);
+
+tN2kAlert Temperatur1Warning(N2kts_Warning, N2kts_Technical, 1);
 
 uint8_t gN2KSource = 22;
 uint8_t gN2KInstance = 255;
@@ -144,6 +148,10 @@ void setup() {
     NMEA2000.EnableForward(false); // Disable all msg forwarding to USB (=Serial)
 
 #endif // DEBUG_NMEA_MSG
+
+    Temperatur1Warning.SetAlertDataSource(id, 0, 0, id);
+    Temperatur1Warning.SetAlertInformation(0, 1, N2kts_German, "Temperatur", "Motorenraum");
+    Temperatur1Warning.SetAlertThreshold(N2kts_greater, 0, 60);
 
 
     // If you also want to see all traffic on the bus use N2km_ListenAndNode instead of N2km_NodeOnly below
