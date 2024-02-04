@@ -47,10 +47,13 @@ IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CON
 char InstanceValue[NUMBER_LEN];
 char SIDValue[NUMBER_LEN];
 char SourceValue[NUMBER_LEN];
+char SourceValueAlarm[NUMBER_LEN];
 iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
 iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
 iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
+
 iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2KSource", "N2KSource", SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
+iotwebconf::NumberParameter SourceAlarmParam = iotwebconf::NumberParameter("N2KSourceAlarm", "N2KSourceAlarm", SourceValueAlarm, NUMBER_LEN, "23", nullptr, nullptr);
 
 char TempSourceValue1[STRING_LEN];
 iotwebconf::ParameterGroup TempSourceGroup = iotwebconf::ParameterGroup("TemperaturGroup", "Temperatur source");
@@ -112,8 +115,6 @@ void wifiInit() {
 
     InstanceGroup.addItem(&InstanceParam);
     InstanceGroup.addItem(&SIDParam);
-    iotWebConf.addHiddenParameter(&SourceParam);
-    iotWebConf.addParameterGroup(&InstanceGroup);
 
     TempSourceGroup.addItem(&TempSource1);
 
@@ -128,6 +129,11 @@ void wifiInit() {
     if (gDeviceCount >= 4) {
         TempSourceGroup.addItem(&TempSource4);
     }
+
+    iotWebConf.addHiddenParameter(&SourceParam);
+    iotWebConf.addHiddenParameter(&SourceAlarmParam);
+
+    iotWebConf.addParameterGroup(&InstanceGroup);
     iotWebConf.addParameterGroup(&TempSourceGroup);
 
     iotWebConf.setConfigSavedCallback(&configSaved);
@@ -158,8 +164,11 @@ void wifiLoop() {
     if (gSaveParams) {
         Serial.println(F("Parameters are changed,save them"));
 
-        String s = (String)gN2KSource;
+        String s = (String)gN2KSource[TemperaturDevice];
         strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
+
+        s = (String)gN2KSource[AlarmDevice];
+        strncpy(SourceAlarmParam.valueBuffer, s.c_str(), NUMBER_LEN);
 
         iotWebConf.saveConfig();
         gSaveParams = false;
@@ -227,12 +236,13 @@ void convertParams() {
 
     if (atoi(SourceValue) == 0) {
         Serial.println(F("Incorrect format for source id"));
-        String s = (String)gN2KSource;
+        String s = (String)gN2KSource[TemperaturDevice];
         strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
         iotWebConf.saveConfig();
     }
 
-    gN2KSource = atoi(SourceValue);
+    gN2KSource[TemperaturDevice] = atoi(SourceValue);
+    gN2KSource[AlarmDevice] = atoi(SourceValueAlarm);
 }
 
 void configSaved() {
