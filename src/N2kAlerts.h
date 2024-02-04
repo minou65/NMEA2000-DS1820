@@ -21,6 +21,7 @@ public:
 	void SetAlertDataSource(uint64_t _NetworkId, uint8_t _Instance, uint8_t _Index, uint64_t _AcknowledgeNetworkId);
 	void SetAlertThreshold(t2kNAlertThresholdMethod _Method, uint8_t _Format, uint64_t _Level);
 
+	uint16_t GetAlertID();
 	tN2kAlertType GetAlertType();
 	tN2kAlertCategory GetAlertCategory();
 	tN2kAlertThresholdStatus GetAlertThresholdStatus();
@@ -40,7 +41,7 @@ public:
 	void SetN2kAlert(tN2kMsg &N2kMsg);
 
 private:
-	uint16_t Id;
+	uint16_t AlertId;
 	uint8_t Priority;
 	tN2kAlertType AlertType;
 	tN2kAlertCategory AlertCategory;
