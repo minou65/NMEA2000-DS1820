@@ -22,20 +22,19 @@ void SetN2kPGN126983(
 	tN2kAlertThresholdStatus ThresholdStatus,
 	unsigned char AlertPriority,
 	tN2kAlertState AlertState,
-	tN2kAlertYesNo TemporarySilenceStatus = N2kts_No,
-	tN2kAlertYesNo AcknowledgeStatus = N2kts_No,
-	tN2kAlertYesNo EscalationStatus = N2kts_No,
-	tN2kAlertYesNo TemporarySilenceSupport = N2kts_No,
-	tN2kAlertYesNo AcknowledgeSupport = N2kts_No,
-	tN2kAlertYesNo EscalationSupport = N2kts_No
+	tN2kAlertYesNo TemporarySilenceStatus,
+	tN2kAlertYesNo AcknowledgeStatus,
+	tN2kAlertYesNo EscalationStatus,
+	tN2kAlertYesNo TemporarySilenceSupport,
+	tN2kAlertYesNo AcknowledgeSupport,
+	tN2kAlertYesNo EscalationSupport
 ) {
+	unsigned char v;
 
 	N2kMsg.SetPGN(126983L);
 	N2kMsg.Priority = 2;
-	N2kMsg.AddByte(unsigned char(
-		(AlertCategory << 4) |
-		(AlertType)
-		));
+	v = (AlertCategory << 4) | (AlertType);
+	N2kMsg.AddByte(v);
 	N2kMsg.AddByte(AlertSystem);
 	N2kMsg.AddByte(AlertSubSystem);
 	N2kMsg.Add2ByteUInt(AlertID);
@@ -43,20 +42,13 @@ void SetN2kPGN126983(
 	N2kMsg.AddByte(DataSourceInstance);
 	N2kMsg.AddByte(DataSourceIndex);
 	N2kMsg.AddByte(AlertOccurence);
-	N2kMsg.AddByte(unsigned char(
-		(0x03 << 6) |
-		(EscalationSupport << 5) |
-		(AcknowledgeSupport << 4) |
-		(TemporarySilenceSupport << 3) |
-		(EscalationStatus << 2) |
-		(AcknowledgeStatus << 1) |
-		TemporarySilenceStatus
-		));
+
+	v = (0x03 << 6) | (EscalationSupport << 5) | (AcknowledgeSupport << 4) | (TemporarySilenceSupport << 3) | (EscalationStatus << 2) | (AcknowledgeStatus << 1) | TemporarySilenceStatus;
+	N2kMsg.AddByte(v);
 	N2kMsg.AddUInt64(AcknowledgeNetworkID);
-	N2kMsg.AddByte(unsigned char(
-		(ThresholdStatus << 4) |
-		(TriggerCondition)
-		));
+
+	v = (ThresholdStatus << 4) | (TriggerCondition);
+	N2kMsg.AddByte(v);
 	N2kMsg.AddByte(AlertPriority);
 	N2kMsg.AddByte(AlertState);
 };
@@ -129,12 +121,12 @@ void SetN2kPGN126984(
 	uint64_t AcknowledgeNetworkID,
 	tN2kAlertResponseCommand ResponseCommand
 ) {
+	unsigned char v;
 	N2kMsg.SetPGN(126984L);
 	N2kMsg.Priority = 2;
-	N2kMsg.AddByte(unsigned char(
-		(AlertCategory << 4) |
-		(AlertType)
-		));
+
+	v = (AlertCategory << 4) | (AlertType);
+	N2kMsg.AddByte(v);
 	N2kMsg.AddByte(AlertSystem);
 	N2kMsg.AddByte(AlertSubSystem);
 	N2kMsg.Add2ByteUInt(AlertID);
@@ -143,10 +135,9 @@ void SetN2kPGN126984(
 	N2kMsg.AddByte(DataSourceIndex);
 	N2kMsg.AddByte(AlertOccurence);
 	N2kMsg.AddUInt64(AcknowledgeNetworkID);
-	N2kMsg.AddByte(unsigned char(
-		(0xFC) |
-		(ResponseCommand)
-		));
+
+	v = 0xFC | ResponseCommand;
+	N2kMsg.AddByte(v);
 }
 
 bool ParseN2kPGN126984(
@@ -199,13 +190,13 @@ void SetN2kPGN126985(
 	char* AlertTextDescription,
 	char* AlertLocationTextDescription
 ) {
+	unsigned char v;
 
 	N2kMsg.SetPGN(126985L);
 	N2kMsg.Priority = 2;
-	N2kMsg.AddByte(unsigned char(
-		(AlertCategory << 4) |
-		(AlertType)
-		));
+
+	v = (AlertCategory << 4) | (AlertType);
+	N2kMsg.AddByte(v);
 	N2kMsg.AddByte(AlertSystem);
 	N2kMsg.AddByte(AlertSubSystem);
 	N2kMsg.Add2ByteUInt(AlertID);

@@ -15,7 +15,7 @@
 //*****************************************************************************
 // Alert Notification
 
-void SetN2kPGN126983(
+extern void SetN2kPGN126983(
     tN2kMsg &N2kMsg,
     tN2kAlertType AlertType,
     tN2kAlertCategory AlertCategory,
@@ -31,12 +31,12 @@ void SetN2kPGN126983(
     tN2kAlertThresholdStatus ThresholdStatus,
     unsigned char AlertPriority,
     tN2kAlertState AlertState,
-    tN2kAlertYesNo TemporarySilenceStatus = N2kts_No,
-    tN2kAlertYesNo AcknowledgeStatus = N2kts_No,
-    tN2kAlertYesNo EscalationStatus = N2kts_No,
-    tN2kAlertYesNo TemporarySilenceSupport = N2kts_No,
-    tN2kAlertYesNo AcknowledgeSupport = N2kts_No,
-    tN2kAlertYesNo EscalationSupport = N2kts_No
+    tN2kAlertYesNo TemporarySilenceStatus = N2kts_AlertNo,
+    tN2kAlertYesNo AcknowledgeStatus = N2kts_AlertNo,
+    tN2kAlertYesNo EscalationStatus = N2kts_AlertNo,
+    tN2kAlertYesNo TemporarySilenceSupport = N2kts_AlertNo,
+    tN2kAlertYesNo AcknowledgeSupport = N2kts_AlertNo,
+    tN2kAlertYesNo EscalationSupport = N2kts_AlertNo
 );
 
 inline void SetN2kAlert(
@@ -55,12 +55,12 @@ inline void SetN2kAlert(
     tN2kAlertThresholdStatus ThresholdStatus,
     unsigned char AlertPriority,
     tN2kAlertState AlertState,
-    tN2kAlertYesNo TemporarySilenceStatus = N2kts_No,
-    tN2kAlertYesNo AcknowledgeStatus = N2kts_No,
-    tN2kAlertYesNo EscalationStatus = N2kts_No,
-    tN2kAlertYesNo TemporarySilenceSupport = N2kts_No,
-    tN2kAlertYesNo AcknowledgeSupport = N2kts_No,
-    tN2kAlertYesNo EscalationSupport = N2kts_No
+    tN2kAlertYesNo TemporarySilenceStatus = N2kts_AlertNo,
+    tN2kAlertYesNo AcknowledgeStatus = N2kts_AlertNo,
+    tN2kAlertYesNo EscalationStatus = N2kts_AlertNo,
+    tN2kAlertYesNo TemporarySilenceSupport = N2kts_AlertNo,
+    tN2kAlertYesNo AcknowledgeSupport = N2kts_AlertNo,
+    tN2kAlertYesNo EscalationSupport = N2kts_AlertNo
 ) {
     SetN2kPGN126983(N2kMsg, AlertType, AlertCategory, AlertSystem, AlertSubSystem, AlertID, SourceNetworkID, DataSourceInstance, DataSourceIndex, AlertOccurence,
         AcknowledgeNetworkID, TriggerCondition, ThresholdStatus, AlertPriority, AlertState, TemporarySilenceStatus, AcknowledgeStatus, EscalationStatus,
@@ -68,7 +68,7 @@ inline void SetN2kAlert(
 
 };
 
-bool ParseN2kPGN126983(
+extern bool ParseN2kPGN126983(
     const tN2kMsg &N2kMsg,
     tN2kAlertType &AlertType,
     tN2kAlertCategory &AlertCategory,
@@ -95,7 +95,7 @@ bool ParseN2kPGN126983(
 //*****************************************************************************
 // Alert Response Notification
 
-void SetN2kPGN126984(
+extern void SetN2kPGN126984(
     tN2kMsg &N2kMsg,
     tN2kAlertType AlertType,
     tN2kAlertCategory AlertCategory,
@@ -110,7 +110,7 @@ void SetN2kPGN126984(
     tN2kAlertResponseCommand ResponseCommand
 );
 
-void SetN2kAlertReponse(
+inline void SetN2kAlertReponse(
     tN2kMsg &N2kMsg,
     tN2kAlertType AlertType,
     tN2kAlertCategory AlertCategory,
@@ -129,7 +129,7 @@ void SetN2kAlertReponse(
         ResponseCommand);
 };
 
-bool ParseN2kPGN126984(
+extern bool ParseN2kPGN126984(
     const tN2kMsg &N2kMsg,
     tN2kAlertType &AlertType,
     tN2kAlertCategory &AlertCategory,
@@ -147,7 +147,7 @@ bool ParseN2kPGN126984(
 //*****************************************************************************
 // Alert Text Notification
 
-void SetN2kPGN126985(
+extern void SetN2kPGN126985(
     tN2kMsg &N2kMsg,
     tN2kAlertType AlertType,
     tN2kAlertCategory AlertCategory,
@@ -184,7 +184,7 @@ inline void SetN2kAlertText(
 
 };
 
-bool ParseN2kPGN126985(
+extern bool ParseN2kPGN126985(
     const tN2kMsg &N2kMsg,
     tN2kAlertType &AlertType,
     tN2kAlertCategory &AlertCategory,

@@ -10,12 +10,15 @@
 #endif
 
 #include "N2kAlertMessages.h"
+#include "neotimer.h"
+
+#define String_Len 50
 
 class tN2kAlert {
 public:
-	tN2kAlert(tN2kAlertType _AlertType, tN2kAlertCategory _AlertCategory, uint16_t _AlertId, tN2kAlertTriggerCondition _TriggerCondition = N2kts_Auto, uint8_t _AlertPriority = 100,
-		tN2kAlertYesNo _TemporarySilenceSupport = N2kts_No, tN2kAlertYesNo _AcknowledgeSupport = N2kts_No, tN2kAlertYesNo _EscalationSupport = N2kts_No);
-	void SetAlertInformation(uint8_t _Alertsystem, uint8_t _AlertSubsystem, tN2kAlertLanguage _Language, std::string _AlertDescription, std::string _AlertLocation);
+	tN2kAlert(tN2kAlertType _AlertType, tN2kAlertCategory _AlertCategory, uint16_t _AlertId, tN2kAlertTriggerCondition _TriggerCondition = N2kts_AlertTriggerAuto, uint8_t _AlertPriority = 100,
+		tN2kAlertYesNo _TemporarySilenceSupport = N2kts_AlertNo, tN2kAlertYesNo _AcknowledgeSupport = N2kts_AlertNo, tN2kAlertYesNo _EscalationSupport = N2kts_AlertNo);
+	void SetAlertInformation(uint8_t _Alertsystem, uint8_t _AlertSubsystem, tN2kAlertLanguage _Language, char* _AlertDescription, char* _AlertLocation);
 	void SetAlertDataSource(uint64_t _NetworkId, uint8_t _Instance, uint8_t _Index, uint64_t _AcknowledgeNetworkId);
 	void SetAlertThreshold(t2kNAlertThresholdMethod _Method, uint8_t _Format, uint64_t _Level);
 
@@ -34,12 +37,14 @@ public:
 
 	tN2kAlertThresholdStatus TestAlertThreshold(uint64_t v);
 
+	void SetN2kAlertText(tN2kMsg &N2kMsg);
+	void SetN2kAlert(tN2kMsg &N2kMsg);
+
 private:
 	uint16_t Id;
 	uint8_t Priority;
-	tN2kAlertType Type;
+	tN2kAlertType AlertType;
 	tN2kAlertCategory Category;
-	tN2kAlertThresholdStatus AlertThresholdStatus;
 	tN2kAlertState AlertState;
 	uint8_t Occurence;
 
@@ -47,8 +52,8 @@ private:
 	uint8_t subSystem;
 
 	tN2kAlertLanguage Language;
-	std::string TextDescription;
-	std::string LocationTextDescription;
+	char AlerttDescription[String_Len + 1];
+	char AlertLocation[String_Len + 1];
 
 	uint64_t NetworkId;
 	uint64_t AcknowledgeNetworkId;
@@ -70,6 +75,10 @@ private:
 	t2kNAlertThresholdMethod ThresholdMethod;
 	uint8_t ThresholdFormat;
 	uint64_t ThresholdLevel;
+
+	Neotimer AlertScheduler = Neotimer(500);
+	Neotimer DescriptionScheduler = Neotimer(4000);
+
 };
 
 #endif
