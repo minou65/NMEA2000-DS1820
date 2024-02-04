@@ -10,7 +10,6 @@
 #endif
 
 #include "N2kAlertMessages.h"
-#include "neotimer.h"
 
 #define String_Len 50
 
@@ -44,15 +43,15 @@ private:
 	uint16_t Id;
 	uint8_t Priority;
 	tN2kAlertType AlertType;
-	tN2kAlertCategory Category;
+	tN2kAlertCategory AlertCategory;
 	tN2kAlertState AlertState;
 	uint8_t Occurence;
 
 	uint8_t System;
 	uint8_t subSystem;
 
-	tN2kAlertLanguage Language;
-	char AlerttDescription[String_Len + 1];
+	tN2kAlertLanguage AlertLanguage;
+	char AlertDescription[String_Len + 1];
 	char AlertLocation[String_Len + 1];
 
 	uint64_t NetworkId;
@@ -75,10 +74,6 @@ private:
 	t2kNAlertThresholdMethod ThresholdMethod;
 	uint8_t ThresholdFormat;
 	uint64_t ThresholdLevel;
-
-	Neotimer AlertScheduler = Neotimer(500);
-	Neotimer DescriptionScheduler = Neotimer(4000);
-
 };
 
 #endif

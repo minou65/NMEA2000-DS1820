@@ -9,7 +9,7 @@
 tN2kAlert::tN2kAlert(tN2kAlertType _AlertType, tN2kAlertCategory _AlertCategory, uint16_t _AlertId, tN2kAlertTriggerCondition _TriggerCondition, uint8_t _AlertPriority,
 	tN2kAlertYesNo _TemporarySilenceSupport, tN2kAlertYesNo _AcknowledgeSupport, tN2kAlertYesNo _EscalationSupport) :
 	AlertType(_AlertType),
-	Category(_AlertCategory),
+	AlertCategory(_AlertCategory),
 	Id(_AlertId),
 	Priority(_AlertPriority),
 	TemporarySilenceSupport(_TemporarySilenceSupport),
@@ -21,8 +21,6 @@ tN2kAlert::tN2kAlert(tN2kAlertType _AlertType, tN2kAlertCategory _AlertCategory,
 	Occurence(0),
 	TriggerCondition(_TriggerCondition) {
 
-	AlertScheduler.start();
-	DescriptionScheduler.start();
 	ThresholdStatus = N2kts_AlertThresholdStatusNormal;
 
 };
@@ -30,8 +28,8 @@ tN2kAlert::tN2kAlert(tN2kAlertType _AlertType, tN2kAlertCategory _AlertCategory,
 void tN2kAlert::SetAlertInformation(uint8_t _Alertsystem, uint8_t _AlertSubsystem, tN2kAlertLanguage _Language, char* _AlertDescription, char* _AlertLocation) {
 	System = _Alertsystem;
 	subSystem = _AlertSubsystem;
-	Language = _Language;
-	strlcpy(AlerttDescription, _AlertDescription, String_Len);
+	AlertLanguage = _Language;
+	strlcpy(AlertDescription, _AlertDescription, String_Len);
 	strlcpy(AlertLocation, _AlertLocation, String_Len);
 }
 
@@ -53,7 +51,7 @@ tN2kAlertType tN2kAlert::GetAlertType(){
 }
 
 tN2kAlertCategory tN2kAlert::GetAlertCategory(){
-	return tN2kAlertCategory(Category);
+	return tN2kAlertCategory(AlertCategory);
 }
 
 tN2kAlertThresholdStatus tN2kAlert::GetAlertThresholdStatus(){
@@ -148,11 +146,11 @@ tN2kAlertThresholdStatus tN2kAlert::TestAlertThreshold(uint64_t v){
 }
 
 void tN2kAlert::SetN2kAlertText(tN2kMsg &N2kMsg){
-	SetN2kPGN126985(N2kMsg, AlertType, Category, System, subSystem, Id, NetworkId, Instance, Index, Occurence, Language, AlerttDescription, AlertLocation);
+	SetN2kPGN126985(N2kMsg, AlertType, AlertCategory, System, subSystem, Id, NetworkId, Instance, Index, Occurence, AlertLanguage, AlertDescription, AlertLocation);
 }
 
 void tN2kAlert::SetN2kAlert(tN2kMsg &N2kMsg){
-	SetN2kPGN126983(N2kMsg, AlertType, Category, System, subSystem, Id, NetworkId, Instance, Index, Occurence, AcknowledgeNetworkId, TriggerCondition, ThresholdStatus, Priority, AlertState,
+	SetN2kPGN126983(N2kMsg, AlertType, AlertCategory, System, subSystem, Id, NetworkId, Instance, Index, Occurence, AcknowledgeNetworkId, TriggerCondition, ThresholdStatus, Priority, AlertState,
 		TemporarySilenceStatus, AcknowledgeStatus, EscalationStatus, 
 		TemporarySilenceSupport, AcknowledgeSupport, EscalationSupport);
 }
