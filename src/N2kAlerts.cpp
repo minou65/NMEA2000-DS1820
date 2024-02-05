@@ -11,7 +11,7 @@ tN2kAlert::tN2kAlert(tN2kAlertType _AlertType, tN2kAlertCategory _AlertCategory,
 	AlertType(_AlertType),
 	AlertCategory(_AlertCategory),
 	AlertId(_AlertId),
-	Priority(_AlertPriority),
+	AlertPriority(_AlertPriority),
 	TemporarySilenceSupport(_TemporarySilenceSupport),
 	AcknowledgeSupport(_AcknowledgeSupport),
 	EscalationSupport(_EscalationSupport),
@@ -25,19 +25,19 @@ tN2kAlert::tN2kAlert(tN2kAlertType _AlertType, tN2kAlertCategory _AlertCategory,
 
 };
 
-void tN2kAlert::SetAlertInformation(uint8_t _Alertsystem, uint8_t _AlertSubsystem, tN2kAlertLanguage _Language, char* _AlertDescription, char* _AlertLocation) {
-	System = _Alertsystem;
-	subSystem = _AlertSubsystem;
-	AlertLanguage = _Language;
+void tN2kAlert::SetAlertSystem(uint8_t _Alertsystem, uint8_t _AlertSubsystem, uint64_t _AcknowledgeNetworkId, tN2kAlertLanguage _AlertLanguage, char* _AlertDescription, char* _AlertLocation) {
+	AlertSystem = _Alertsystem;
+	AlertSubSystem = _AlertSubsystem;
+	AcknowledgeNetworkId = _AcknowledgeNetworkId;
+	AlertLanguage = _AlertLanguage;
 	strlcpy(AlertDescription, _AlertDescription, String_Len);
 	strlcpy(AlertLocation, _AlertLocation, String_Len);
 }
 
-void tN2kAlert::SetAlertDataSource(uint64_t _NetworkId, uint8_t _Instance, uint8_t _Index, uint64_t _AcknowledgeNetworkId) {
-	NetworkId = _NetworkId;
-	Instance = _Instance;
-	Index = _Index;
-	AcknowledgeNetworkId = _AcknowledgeNetworkId;
+void tN2kAlert::SetAlertDataSource(uint64_t _NetworkId, uint8_t _DataSourceInstance, uint8_t _DatesourceIndexSource) {
+	DataSourceNetworkId = _NetworkId;
+	DataSourceInstance = _DataSourceInstance;
+	DataSourceIndexSource = _DatesourceIndexSource;
 }
 
 void tN2kAlert::SetAlertThreshold(t2kNAlertThresholdMethod _Method, uint8_t _Format, uint64_t _Level){
@@ -150,11 +150,15 @@ tN2kAlertThresholdStatus tN2kAlert::TestAlertThreshold(uint64_t v){
 }
 
 void tN2kAlert::SetN2kAlertText(tN2kMsg &N2kMsg){
-	SetN2kPGN126985(N2kMsg, AlertType, AlertCategory, System, subSystem, AlertId, NetworkId, Instance, Index, Occurence, AlertLanguage, AlertDescription, AlertLocation);
+	SetN2kPGN126985(N2kMsg, AlertType, AlertCategory, AlertSystem, AlertSubSystem, AlertId, 
+		DataSourceNetworkId, DataSourceInstance, DataSourceIndexSource, 
+		Occurence, AlertLanguage, AlertDescription, AlertLocation);
 }
 
 void tN2kAlert::SetN2kAlert(tN2kMsg &N2kMsg){
-	SetN2kPGN126983(N2kMsg, AlertType, AlertCategory, System, subSystem, AlertId, NetworkId, Instance, Index, Occurence, AcknowledgeNetworkId, TriggerCondition, ThresholdStatus, Priority, AlertState,
+	SetN2kPGN126983(N2kMsg, AlertType, AlertCategory, AlertSystem, AlertSubSystem, AlertId, 
+		DataSourceNetworkId, DataSourceInstance, DataSourceIndexSource, 
+		Occurence, AcknowledgeNetworkId, TriggerCondition, ThresholdStatus, AlertPriority, AlertState,
 		TemporarySilenceStatus, AcknowledgeStatus, EscalationStatus, 
 		TemporarySilenceSupport, AcknowledgeSupport, EscalationSupport);
 }
