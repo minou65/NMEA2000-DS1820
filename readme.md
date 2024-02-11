@@ -78,7 +78,7 @@ This should be unique at least on one device. May be best to have it unique over
 Sequence identifier. In most cases you can use just 255 for SID. The sequence identifier field is used to tie different PGNs data together to same sampling or calculation time.
 
 ### Sensor
-Depending on the number of sensors connected, the following settings can be made
+Depending on the number of sensors connected, the following settings can be made for each sensor.
 
 #### Source
 One of the following temperature sources can be selected
@@ -93,7 +93,7 @@ One of the following temperature sources can be selected
 - Heating system temperature
 - Freezer temperature
 - Exhaust gas temperature
-- Shaft seal temparature"
+- Shaft seal temparature
 
 #### Threshold (°C)
 Threshold in °C
