@@ -7,7 +7,15 @@
 	- [NMEA 2000 ](#nmea-2000-)
 	- [Librarys ](#librarys-)
 	- [Required hardware ](#required-hardware-)
-	- [Settings ](#settings-)
+	- [Settings](#settings)
+		- [NMEA 2000 Settings](#nmea-2000-settings)
+			- [Instance](#instance)
+			- [SID](#sid)
+		- [Sensor](#sensor)
+			- [Source](#source)
+			- [Threshold (°C)](#threshold-c)
+			- [Method](#method)
+			- [Alert Description](#alert-description)
 	- [WiFi ](#wifi-)
 		- [Default Password ](#default-password-)
 		- [Default IP address ](#default-ip-address-)
@@ -20,24 +28,7 @@
 
 This device can monitor temperaturs and send the values over a NMEA 2000 bus. The values can also be viewed via a web interface, For that the Device should be connected to a wifi AP
 
-The following temperature sources can be selected:
 
-- Sea water temperature
-- Outside temperature
-- Inside temperature
-- Engine room temperature
-- Main cabin temperature
-- Live well temperature
-- Bait well temperature
-- Refrigeration temperature
-- Heating system temperature
-- Dew point temperature
-- Apparent wind chill temperature
-- Theoretical wind chill temperature
-- Heat index temperature
-- Freezer temperature
-- Exhaust gas temperature
-- Shaft seal temparature"
 
 ## NMEA 2000 <a name="nmea2000"></a>
 
@@ -46,6 +37,11 @@ Depending on the temperature source, one of the following PNGs are sent
 - 130310, // Environmental Parameters - DEPRECATED
 - 130312, // Temperature - DEPRECATED
 - 130316, // Temperature, Extended Range
+
+The device is also capable of sending alerts. In this case these PGN's are used
+- 126983, // Alert
+- 126984, // Alert response
+- 126985, // Alert text
 
 
 ## Librarys <a name="libs"></a>
@@ -71,11 +67,45 @@ Some pictures from the assabled hardware
 <img title="picture 1" src="/img/20230723_085825516_iOS.jpg">
 
 
-## Settings <a name="settings"></a>
+## Settings
 
-Depending on the number of connected sensors, the source can be selected for up to 4 sensors.
+### NMEA 2000 Settings
 
-<img title="settings" src="/img/settings-temperatur.png">
+#### Instance
+This should be unique at least on one device. May be best to have it unique over all devices        sending this PGN. Depending on the number of sensors connected, between 1 and 4 instances are used
+
+#### SID
+Sequence identifier. In most cases you can use just 255 for SID. The sequence identifier field is used to tie different PGNs data together to same sampling or calculation time.
+
+### Sensor
+Depending on the number of sensors connected, the following settings can be made
+
+#### Source
+One of the following temperature sources can be selected
+- Sea water temperature
+- Outside temperature
+- Inside temperature
+- Engine room temperature
+- Main cabin temperature
+- Live well temperature
+- Bait well temperature
+- Refrigeration temperature
+- Heating system temperature
+- Freezer temperature
+- Exhaust gas temperature
+- Shaft seal temparature"
+
+#### Threshold (°C)
+Threshold in °C
+
+#### Method
+Method with which the threshold value is compared to the current value
+- equal
+- lower then
+- greater then
+
+#### Alert Description
+Description of the alarm
 
 ## WiFi <a name="wifi"></a>
 
