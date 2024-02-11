@@ -22,9 +22,14 @@ tN2kAlert::tN2kAlert(tN2kAlertType _AlertType, tN2kAlertCategory _AlertCategory,
 	TriggerCondition(_TriggerCondition) {
 
 	ThresholdStatus = N2kts_AlertThresholdStatusNormal;
+	SetTemporarySilenceTime(3600);
+	TemporarySilenceTimer = tN2kScheduler(TemporarySilenceDelay);
 
 };
 
+// AlertSystem				: UID in the Network for this device
+// AlertSubsystem			: ID for each alert on this device
+// AcknowledgeNetworkId		; Network ID for this alert device
 void tN2kAlert::SetAlertSystem(uint8_t _Alertsystem, uint8_t _AlertSubsystem, uint64_t _AcknowledgeNetworkId, tN2kAlertLanguage _AlertLanguage, char* _AlertDescription, char* _AlertLocation) {
 	AlertSystem = _Alertsystem;
 	AlertSubSystem = _AlertSubsystem;
@@ -34,8 +39,12 @@ void tN2kAlert::SetAlertSystem(uint8_t _Alertsystem, uint8_t _AlertSubsystem, ui
 	strlcpy(AlertLocation, _AlertLocation, String_Len);
 }
 
-void tN2kAlert::SetAlertDataSource(uint64_t _NetworkId, uint8_t _DataSourceInstance, uint8_t _DatesourceIndexSource) {
-	DataSourceNetworkId = _NetworkId;
+// This settings are need for linking the alert and senosr together
+// DataSourceInstance		: UID from the device (e.g. temperatur sensor) for wihich this alert will be send
+// DatesourceIndexSource	: ID from the sensor on the device
+// DataSourceNetworkId		: Network id for the sensor device	
+void tN2kAlert::SetAlertDataSource(uint8_t _DataSourceInstance, uint8_t _DatesourceIndexSource, uint64_t _DataSourceNetworkId) {
+	DataSourceNetworkId = _DataSourceNetworkId;
 	DataSourceInstance = _DataSourceInstance;
 	DataSourceIndexSource = _DatesourceIndexSource;
 }
@@ -90,60 +99,73 @@ tN2kAlertYesNo tN2kAlert::GetEscalationStatus(){
 	return tN2kAlertYesNo(EscalationStatus);
 }
 
+void tN2kAlert::SetAlertExceeded() {
+
+	if (Occurence > 250) Occurence = 0;
+
+	if (ThresholdStatus == N2kts_AlertThresholdStatusNormal) {
+		ThresholdStatus = N2kts_AlertThresholdStatusExceeded;
+		Occurence++;
+	}
+
+	if (ThresholdStatus == N2kts_AlertThresholdStatusExceeded) {
+		AlertState = N2kts_AlertStateActive;
+		if (TemporarySilenceStatus == N2kts_AlertYes) {
+			AlertState == N2kts_AlertStateSilenced;
+		}
+
+		if (AcknowledgeStatus == N2kts_AlertYes) {
+			AlertState == N2kts_AlertStateAcknowledged;
+			ThresholdStatus = N2kts_AlertThresholdStatusAcknowledged;
+		}
+	}
+
+}
+
+void tN2kAlert::ResetAlert() {
+
+	ThresholdStatus = N2kts_AlertThresholdStatusNormal;
+	AlertState = N2kts_AlertStateNormal;
+
+	AcknowledgeStatus = N2kts_AlertNo;
+}
+
 tN2kAlertThresholdStatus tN2kAlert::TestAlertThreshold(uint64_t v){
+
+	//Serial.print("Threshold level: "); Serial.println(ThresholdLevel);
+	//Serial.print("Value          : "); Serial.println(v);
+	//Serial.print("Method         : "); Serial.println(ThresholdMethod);
+
 
 	if (ThresholdMethod == N2kts_AlertThresholddMethodGreater) {
 		if (v > ThresholdLevel) {
-			if (ThresholdStatus != N2kts_AlertThresholdStatusExceeded) {
-				ThresholdStatus = N2kts_AlertThresholdStatusExceeded;
-				Occurence++;
-				if (Occurence > 250) {
-					Occurence = 0;
-					ThresholdStatus = N2kts_AlertThresholdStatusExtremeExceeded;
-				}
-				AlertState = N2kts_AlertStateActive;
-			}
+			SetAlertExceeded();
 		}
 		else {
-			ThresholdStatus = N2kts_AlertThresholdStatusNormal;
-			AlertState = N2kts_AlertStateNormal;
+			ResetAlert();
 		}
 	}
 
 	if (ThresholdMethod == N2kts_AlertThresholdMethodLower) {
 		if (v < ThresholdLevel) {
-			if (ThresholdStatus != N2kts_AlertThresholdStatusExceeded) {
-				ThresholdStatus = N2kts_AlertThresholdStatusExceeded;
-				Occurence++;
-				if (Occurence > 250) {
-					Occurence = 0;
-					ThresholdStatus = N2kts_AlertThresholdStatusExtremeExceeded;
-				}
-				AlertState = N2kts_AlertStateActive;
-			}
+			SetAlertExceeded();
 		}
 		else {
-			ThresholdStatus = N2kts_AlertThresholdStatusNormal;
-			AlertState = N2kts_AlertStateNormal;
+			ResetAlert();
 		}
 	}
 
 	if (ThresholdMethod == N2kts_AlertThresholdMethodEqual) {
 		if (v == ThresholdLevel) {
-			if (ThresholdStatus != N2kts_AlertThresholdStatusExceeded) {
-				ThresholdStatus = N2kts_AlertThresholdStatusExceeded;
-				Occurence++;
-				if (Occurence > 250) {
-					Occurence = 0;
-					ThresholdStatus = N2kts_AlertThresholdStatusExtremeExceeded;
-				}
-				AlertState = N2kts_AlertStateActive;
-			}
+			SetAlertExceeded();
 		}
 		else {
-			ThresholdStatus = N2kts_AlertThresholdStatusNormal;
-			AlertState = N2kts_AlertStateNormal;
+			ResetAlert();
 		}
+	}
+
+	if (TemporarySilenceTimer.IsTime()) {
+		TemporarySilenceStatus = N2kts_AlertNo;
 	}
 
 	return tN2kAlertThresholdStatus(ThresholdStatus);
@@ -161,6 +183,52 @@ void tN2kAlert::SetN2kAlert(tN2kMsg &N2kMsg){
 		Occurence, AcknowledgeNetworkId, TriggerCondition, ThresholdStatus, AlertPriority, AlertState,
 		TemporarySilenceStatus, AcknowledgeStatus, EscalationStatus, 
 		TemporarySilenceSupport, AcknowledgeSupport, EscalationSupport);
+}
+
+void tN2kAlert::SetTemporarySilenceTime(uint16_t seconds){
+	TemporarySilenceDelay = seconds * 1000;
+}
+
+bool tN2kAlert::ParseAlertResponse(const tN2kMsg &N2kMsg){
+	tN2kAlertType _AlertType;
+	tN2kAlertCategory _AlertCategory;
+	unsigned char _AlertSystem;
+	unsigned char _AlertSubSystem;
+	unsigned int _AlertID;
+	uint64_t _SourceNetworkID;
+	unsigned char _DataSourceInstance;
+	unsigned char _DataSourceIndex;
+	unsigned char _AlertOccurence;
+	uint64_t _AcknowledgeNetworkID;
+	tN2kAlertResponseCommand _ResponseCommand;
+
+	if (ParseN2kAlertResponse(N2kMsg, _AlertType, _AlertCategory, _AlertSystem, _AlertSubSystem, _AlertID, 
+		_SourceNetworkID, _DataSourceInstance, _DataSourceIndex, _AlertOccurence, _AcknowledgeNetworkID, 
+		_ResponseCommand)) {
+		if ((AlertSystem == _AlertSystem) && (AlertSubSystem == _AlertSubSystem)) {
+			switch (_ResponseCommand) {
+				case N2kts_AlertResponseAcknowledge:
+					AcknowledgeStatus = N2kts_AlertYes;
+					break;
+
+				case N2kts_AlertResponseTemporarySilence:
+					TemporarySilenceStatus = N2kts_AlertYes;
+					TemporarySilenceTimer.FromNow(TemporarySilenceDelay);
+					break;
+
+				case N2kts_AlertResponseTestCommandOff:
+					break;
+
+				case N2kts_AlertResponseTestCommandOn:
+					break;
+					
+			}
+		}
+		return true;
+
+	}
+
+	return false;
 }
 ;
 

@@ -144,6 +144,25 @@ extern bool ParseN2kPGN126984(
     tN2kAlertResponseCommand &ResponseCommand
 );
 
+inline bool ParseN2kAlertResponse(
+    const tN2kMsg &N2kMsg,
+    tN2kAlertType &AlertType,
+    tN2kAlertCategory &AlertCategory,
+    unsigned char &AlertSystem,
+    unsigned char &AlertSubSystem,
+    unsigned int &AlertID,
+    uint64_t &SourceNetworkID,
+    unsigned char &DataSourceInstance,
+    unsigned char &DataSourceIndex,
+    unsigned char &AlertOccurence,
+    uint64_t &AcknowledgeNetworkID,
+    tN2kAlertResponseCommand &ResponseCommand
+) {
+    ParseN2kPGN126984(N2kMsg, AlertType, AlertCategory, AlertSystem, AlertSubSystem, AlertID, 
+        SourceNetworkID, DataSourceInstance, DataSourceIndex, AlertOccurence, AcknowledgeNetworkID, 
+        ResponseCommand);
+};
+
 //*****************************************************************************
 // Alert Text Notification
 

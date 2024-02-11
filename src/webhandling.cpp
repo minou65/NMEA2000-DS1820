@@ -11,22 +11,34 @@
 #include <time.h>
 //needed for library
 
-#include <DNSServer.h>
-
-#include <IotWebConf.h>
 
 #include "common.h"
 #include "webhandling.h"
+
+extern void InitAlertsystem();
 
 
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
 const char thingName[] = "NMEA-DS1820";
 
-tTemperatur gTemperaturs[4] = {
-    {N2kts_SeaTemperature, 0.0},
-    {N2kts_OutsideTemperature, 0.0},
-    {N2kts_InsideTemperature, 0.0},
-    {N2kts_EngineRoomTemperature, 0.0} };
+char InstanceValue[NUMBER_LEN];
+char SIDValue[NUMBER_LEN];
+char SourceValue[NUMBER_LEN];
+char SourceValueAlarm[NUMBER_LEN];
+iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
+iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "254", "1..254", "min='1' max='254' step='1'");
+iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
+
+iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2KSource", "N2KSource", SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
+iotwebconf::NumberParameter SourceAlarmParam = iotwebconf::NumberParameter("N2KSourceAlarm", "N2KSourceAlarm", SourceValueAlarm, NUMBER_LEN, "23", nullptr, nullptr);
+
+SensorGroup Sensor1 = SensorGroup("sensor1");
+SensorGroup Sensor2 = SensorGroup("sensor2");
+SensorGroup Sensor3 = SensorGroup("sensor3");
+SensorGroup Sensor4 = SensorGroup("sensor4");
+
+
+iotwebconf::OptionalGroupHtmlFormatProvider optionalGroupHtmlFormatProvider;
 
 // -- Method declarations.
 void handleRoot();
@@ -44,97 +56,41 @@ WebServer server(80);
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
 
-char InstanceValue[NUMBER_LEN];
-char SIDValue[NUMBER_LEN];
-char SourceValue[NUMBER_LEN];
-char SourceValueAlarm[NUMBER_LEN];
-iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
-iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
-iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
-
-iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2KSource", "N2KSource", SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
-iotwebconf::NumberParameter SourceAlarmParam = iotwebconf::NumberParameter("N2KSourceAlarm", "N2KSourceAlarm", SourceValueAlarm, NUMBER_LEN, "23", nullptr, nullptr);
-
-char TempSourceValue1[STRING_LEN];
-iotwebconf::ParameterGroup TempSourceGroup = iotwebconf::ParameterGroup("TemperaturGroup", "Temperatur source");
-iotwebconf::SelectParameter TempSource1 = iotwebconf::SelectParameter("Sensor 1",
-    "TempSource1",
-    TempSourceValue1,
-    STRING_LEN,
-    (char*)TempSourceValues,
-    (char*)TempSourceNames,
-    sizeof(TempSourceValues) / STRING_LEN,
-    STRING_LEN,
-    TempSourceNames[gTemperaturs[0].Source]
-);
-
-char TempSourceValue2[STRING_LEN];
-iotwebconf::SelectParameter TempSource2 = iotwebconf::SelectParameter("Sensor 2",
-    "TempSource2",
-    TempSourceValue2,
-    STRING_LEN,
-    (char*)TempSourceValues,
-    (char*)TempSourceNames,
-    sizeof(TempSourceValues) / STRING_LEN,
-    STRING_LEN,
-    TempSourceNames[gTemperaturs[1].Source]
-);
-
-char TempSourceValue3[STRING_LEN];
-iotwebconf::SelectParameter TempSource3 = iotwebconf::SelectParameter("Sensor 3",
-    "TempSource3",
-    TempSourceValue3,
-    STRING_LEN,
-    (char*)TempSourceValues,
-    (char*)TempSourceNames,
-    sizeof(TempSourceValues) / STRING_LEN,
-    STRING_LEN,
-    TempSourceNames[gTemperaturs[2].Source]
-);
-
-char TempSourceValue4[STRING_LEN];
-iotwebconf::SelectParameter TempSource4 = iotwebconf::SelectParameter("Sensor 4",
-    "TempSource4",
-    TempSourceValue4,
-    STRING_LEN,
-    (char*)TempSourceValues,
-    (char*)TempSourceNames,
-    sizeof(TempSourceValues) / STRING_LEN,
-    STRING_LEN,
-    TempSourceNames[gTemperaturs[3].Source]
-);
-
 void wifiInit() {
     Serial.begin(115200);
     Serial.println();
     Serial.println("starting up...");
 
 
-    iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL);
+    iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL); 
     iotWebConf.setConfigPin(CONFIG_PIN);
+    iotWebConf.setHtmlFormatProvider(&optionalGroupHtmlFormatProvider);
 
     InstanceGroup.addItem(&InstanceParam);
     InstanceGroup.addItem(&SIDParam);
 
-    TempSourceGroup.addItem(&TempSource1);
+    iotWebConf.addParameterGroup(&InstanceGroup);
+
+    iotWebConf.addParameterGroup(&Sensor1);
+    Sensor1.setActive(true);
 
     if (gDeviceCount >= 2) {
-        TempSourceGroup.addItem(&TempSource2);
+        Sensor1.setNext(&Sensor2);
+        iotWebConf.addParameterGroup(&Sensor2);
     }
 
     if (gDeviceCount >= 3) {
-        TempSourceGroup.addItem(&TempSource3);
+        Sensor2.setNext(&Sensor3);
+        iotWebConf.addParameterGroup(&Sensor3);
     }
 
     if (gDeviceCount >= 4) {
-        TempSourceGroup.addItem(&TempSource4);
+        Sensor3.setNext(&Sensor4);
+        iotWebConf.addParameterGroup(&Sensor4);
     }
 
     iotWebConf.addHiddenParameter(&SourceParam);
     iotWebConf.addHiddenParameter(&SourceAlarmParam);
-
-    iotWebConf.addParameterGroup(&InstanceGroup);
-    iotWebConf.addParameterGroup(&TempSourceGroup);
 
     iotWebConf.setConfigSavedCallback(&configSaved);
     iotWebConf.setWifiConnectionCallback(&wifiConnected);
@@ -204,8 +160,13 @@ void handleRoot()
         page.replace("{l}", "Temperaturs");
             page += HTML_Start_Table;
 
-            for (uint8_t i = 0; i < gDeviceCount; i++) {
-                page += "<tr><td align=left>" + String(TempSourceNames[gTemperaturs[i].Source]) + ":</td><td>" + String(gTemperaturs[i].Value) + "&deg;C" + "</td></tr>";
+            SensorGroup* _sensor = &Sensor1;
+            while (_sensor != nullptr) {
+                if (_sensor->isActive()) {
+                    page += "<tr><td align=left>" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td>" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
+                }
+
+                _sensor = (SensorGroup*)_sensor->getNext();
             }
 
         page += HTML_End_Table;
@@ -229,17 +190,7 @@ void handleRoot()
 }
 
 void convertParams() {
-    gTemperaturs[0].Value = tN2kTempSource(atoi(TempSourceValue1));
-    gTemperaturs[1].Value = tN2kTempSource(atoi(TempSourceValue2));
-    gTemperaturs[2].Value = tN2kTempSource(atoi(TempSourceValue3));
-    gTemperaturs[3].Value = tN2kTempSource(atoi(TempSourceValue4));
-
-    if (atoi(SourceValue) == 0) {
-        Serial.println(F("Incorrect format for source id"));
-        String s = (String)gN2KSource[TemperaturDevice];
-        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
-        iotWebConf.saveConfig();
-    }
+    InitAlertsystem();
 
     gN2KSource[TemperaturDevice] = atoi(SourceValue);
     gN2KSource[AlarmDevice] = atoi(SourceValueAlarm);

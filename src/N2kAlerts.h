@@ -10,6 +10,7 @@
 #endif
 
 #include "N2kAlertMessages.h"
+#include <N2kTimer.h>
 
 #define String_Len 50
 
@@ -18,7 +19,7 @@ public:
 	tN2kAlert(tN2kAlertType _AlertType, tN2kAlertCategory _AlertCategory, uint16_t _AlertId, tN2kAlertTriggerCondition _TriggerCondition = N2kts_AlertTriggerAuto, uint8_t _AlertPriority = 100,
 		tN2kAlertYesNo _TemporarySilenceSupport = N2kts_AlertNo, tN2kAlertYesNo _AcknowledgeSupport = N2kts_AlertNo, tN2kAlertYesNo _EscalationSupport = N2kts_AlertNo);
 	void SetAlertSystem(uint8_t _Alertsystem, uint8_t _AlertSubsystem, uint64_t _AcknowledgeNetworkId, tN2kAlertLanguage _AlertLanguage, char* _AlertDescription, char* _AlertLocation);
-	void SetAlertDataSource(uint64_t _DataSourceNetworkId, uint8_t _DataSourceInstance, uint8_t _DataSourceIndexSource);
+	void SetAlertDataSource(uint8_t _DataSourceInstance, uint8_t _DatesourceIndexSource, uint64_t _DataSourceNetworkId);
 	void SetAlertThreshold(t2kNAlertThresholdMethod _Method, uint8_t _Format, uint64_t _Level);
 
 	uint16_t GetAlertID();
@@ -39,6 +40,10 @@ public:
 
 	void SetN2kAlertText(tN2kMsg &N2kMsg);
 	void SetN2kAlert(tN2kMsg &N2kMsg);
+
+	void SetTemporarySilenceTime(uint16_t seconds);
+
+	bool ParseAlertResponse(const tN2kMsg &N2kMsg);
 
 private:
 	uint16_t AlertId;
@@ -74,6 +79,12 @@ private:
 	t2kNAlertThresholdMethod ThresholdMethod;
 	uint8_t ThresholdFormat;
 	uint64_t ThresholdLevel;
+
+	tN2kScheduler TemporarySilenceTimer;
+	uint32_t TemporarySilenceDelay;
+
+	void SetAlertExceeded();
+	void ResetAlert();
 };
 
 #endif

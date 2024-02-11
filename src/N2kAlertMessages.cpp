@@ -5,7 +5,7 @@
 #include "N2kAlertMessages.h"
 
 //*****************************************************************************
-// Alert Notification
+// This PGN is used to report the status of an aler
 void SetN2kPGN126983(
 	tN2kMsg &N2kMsg,
 	tN2kAlertType AlertType,
@@ -242,6 +242,7 @@ bool ParseN2kPGN126985(
 	N2kMsg.GetVarStr(AlertTextDescriptionSize, (char*)AlertTextDescription, Index);
 	size_t AlertLocationTextDescriptionSize = sizeof(AlertLocationTextDescription);
 	N2kMsg.GetVarStr(AlertLocationTextDescriptionSize, (char*)AlertLocationTextDescription, Index);
+	return true;
 };
 
 

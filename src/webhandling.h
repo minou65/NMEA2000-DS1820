@@ -9,8 +9,25 @@
 	#include "WProgram.h"
 #endif
 
+#include <IotWebConf.h>
+#include <IotWebConfOptionalGroup.h>
+#include <DNSServer.h>
+
+
 #define STRING_LEN 128
 #define NUMBER_LEN 32
+
+static char TThresholdMethodValues[][STRING_LEN] = {
+    "0",
+    "1",
+    "2"
+};
+
+static char TThresholdMethodNames[][STRING_LEN] = {
+    "equal",
+    "lower than",
+    "greater than"
+};
 
 static char TempSourceValues[][STRING_LEN] = {
     "0",
@@ -70,7 +87,7 @@ static char TempSourceNames[][STRING_LEN] = {
 const char wifiInitialApPassword[] = "123456789";
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
-#define CONFIG_VERSION "A3"
+#define CONFIG_VERSION "A6"
 
 // -- When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 //      password to buld an AP. (E.g. in case of lost password)
@@ -89,5 +106,56 @@ const char wifiInitialApPassword[] = "123456789";
 
 extern void wifiInit();
 extern void wifiLoop();
+
+class SensorGroup : public iotwebconf::ChainedParameterGroup {
+public:
+    SensorGroup(const char* id) : ChainedParameterGroup(id, "Sensor") {
+        // -- Update parameter Ids to have unique ID for all parameters within the application.
+        snprintf(sourceId, STRING_LEN, "%s-source", this->getId());
+        snprintf(thresholdId, STRING_LEN, "%s-threshold", this->getId());
+        snprintf(methodId, STRING_LEN, "%s-method", this->getId());
+        snprintf(descriptionId, STRING_LEN, "%s-description", this->getId());
+
+        // -- Add parameters to this group.
+        this->addItem(&this->SourceParam);
+        this->addItem(&this->ThresholdParam);
+        this->addItem(&this->MethodParam);
+        this->addItem(&this->DescriptionParam);
+
+        value = 0.0;
+    }
+
+    char sourceValue[STRING_LEN];
+    char thresholdValue[NUMBER_LEN];
+    char methodValue[STRING_LEN];
+    char descriptionValue[STRING_LEN];
+    iotwebconf::SelectParameter SourceParam = iotwebconf::SelectParameter("Sensor", sourceId, sourceValue, STRING_LEN, 
+        (char*)TempSourceValues, (char*)TempSourceNames, sizeof(TempSourceValues) / STRING_LEN, STRING_LEN, "1");
+
+    iotwebconf::NumberParameter ThresholdParam = iotwebconf::NumberParameter("Threshold (&deg;C)", thresholdId, thresholdValue, NUMBER_LEN, "0", "0..200", "min='0' max='200' step='1'");
+
+    iotwebconf::SelectParameter MethodParam = iotwebconf::SelectParameter("Method", methodId, methodValue, STRING_LEN,
+        (char*)TThresholdMethodValues, (char*)TThresholdMethodNames, sizeof(TThresholdMethodValues) / STRING_LEN, STRING_LEN, "2");
+
+    iotwebconf::TextParameter DescriptionParam = iotwebconf::TextParameter("Alert Description", descriptionId, descriptionValue, STRING_LEN, "Alert");
+
+    void SetSensorValue(const double v) { value = v; };
+    double GetSensorValue() { return value; };
+    uint8_t GetSourceId() { return atoi(sourceValue); };
+    uint8_t GetThresholdMethod() { return atoi(methodValue); };
+    uint32_t GetThresholdValue() { return atoi(thresholdValue); };
+
+private:
+    char sourceId[STRING_LEN];
+    char thresholdId[STRING_LEN];
+    char methodId[STRING_LEN];
+    char descriptionId[STRING_LEN];
+    double value;
+};
+
+extern SensorGroup Sensor1;
+extern SensorGroup Sensor2;
+extern SensorGroup Sensor3;
+extern SensorGroup Sensor4;
 
 #endif

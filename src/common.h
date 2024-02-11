@@ -27,24 +27,5 @@ extern char Version[];
 extern bool gParamsChanged;
 extern bool gSaveParams;
 
-struct tTemperatur {
-	
-	tN2kTempSource Source;
-	double Value;
-
-public:
-	tTemperatur() {
-		Source = N2kts_SeaTemperature;
-		Value = 0;
-	}
-	tTemperatur(tN2kTempSource S, double V){
-		Source = S;
-		Value = V;
-	}
-	
-};
-
-extern tTemperatur gTemperaturs[4];
-
 
 #endif
