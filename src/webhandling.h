@@ -12,6 +12,8 @@
 #include <IotWebConf.h>
 #include <IotWebConfOptionalGroup.h>
 #include <DNSServer.h>
+#include <N2kTimer.h>
+#include "N2kAlerts.h"
 
 
 #define STRING_LEN 128
@@ -87,7 +89,7 @@ static char TempSourceNames[][STRING_LEN] = {
 const char wifiInitialApPassword[] = "123456789";
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
-#define CONFIG_VERSION "A6"
+#define CONFIG_VERSION "A7"
 
 // -- When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 //      password to buld an AP. (E.g. in case of lost password)
@@ -107,20 +109,22 @@ const char wifiInitialApPassword[] = "123456789";
 extern void wifiInit();
 extern void wifiLoop();
 
-class SensorGroup : public iotwebconf::ChainedParameterGroup {
+class Sensor : public iotwebconf::ChainedParameterGroup {
 public:
-    SensorGroup(const char* id) : ChainedParameterGroup(id, "Sensor") {
+    Sensor(const char* id) : ChainedParameterGroup(id, "Sensor") {
         // -- Update parameter Ids to have unique ID for all parameters within the application.
         snprintf(sourceId, STRING_LEN, "%s-source", this->getId());
         snprintf(thresholdId, STRING_LEN, "%s-threshold", this->getId());
         snprintf(methodId, STRING_LEN, "%s-method", this->getId());
         snprintf(descriptionId, STRING_LEN, "%s-description", this->getId());
+        snprintf(descriptionId, STRING_LEN, "%s-silence", this->getId());
 
         // -- Add parameters to this group.
         this->addItem(&this->SourceParam);
         this->addItem(&this->ThresholdParam);
         this->addItem(&this->MethodParam);
         this->addItem(&this->DescriptionParam);
+        this->addItem(&this->TemporarySilenceParam);
 
         value = 0.0;
     }
@@ -129,7 +133,8 @@ public:
     char thresholdValue[NUMBER_LEN];
     char methodValue[STRING_LEN];
     char descriptionValue[STRING_LEN];
-    iotwebconf::SelectParameter SourceParam = iotwebconf::SelectParameter("Sensor", sourceId, sourceValue, STRING_LEN, 
+    char silenceValue[STRING_LEN];
+    iotwebconf::SelectParameter SourceParam = iotwebconf::SelectParameter("Source", sourceId, sourceValue, STRING_LEN, 
         (char*)TempSourceValues, (char*)TempSourceNames, sizeof(TempSourceValues) / STRING_LEN, STRING_LEN, "1");
 
     iotwebconf::NumberParameter ThresholdParam = iotwebconf::NumberParameter("Threshold (&deg;C)", thresholdId, thresholdValue, NUMBER_LEN, "0", "0..200", "min='0' max='200' step='1'");
@@ -139,23 +144,34 @@ public:
 
     iotwebconf::TextParameter DescriptionParam = iotwebconf::TextParameter("Alert Description", descriptionId, descriptionValue, STRING_LEN, "Alert");
 
+    iotwebconf::NumberParameter TemporarySilenceParam = iotwebconf::NumberParameter("Temporary silence time (minutes)", silenceId, silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'");
+
     void SetSensorValue(const double v) { value = v; };
     double GetSensorValue() { return value; };
     uint8_t GetSourceId() { return atoi(sourceValue); };
     uint8_t GetThresholdMethod() { return atoi(methodValue); };
     uint32_t GetThresholdValue() { return atoi(thresholdValue); };
+    uint16_t GetTemporarySilenceTime() { return atoi(silenceValue); };
+
+    tN2kSyncScheduler SchedulerAlarm = tN2kSyncScheduler(false, 500, 100);
+    tN2kSyncScheduler SchedulerAlarmText = tN2kSyncScheduler(false, 10000, 2000);
+    tN2kSyncScheduler SchedulerTemperatur = tN2kSyncScheduler(false, 2000, 500);
+
+    tN2kAlert Alert = tN2kAlert(N2kts_AlertTypeCaution, N2kts_AlertCategoryTechnical, 100, N2kts_AlertTriggerAuto, 100, N2kts_AlertYes, N2kts_AlertYes);
 
 private:
     char sourceId[STRING_LEN];
     char thresholdId[STRING_LEN];
     char methodId[STRING_LEN];
     char descriptionId[STRING_LEN];
+    char silenceId[String_Len];
     double value;
+
 };
 
-extern SensorGroup Sensor1;
-extern SensorGroup Sensor2;
-extern SensorGroup Sensor3;
-extern SensorGroup Sensor4;
+extern Sensor Sensor1;
+extern Sensor Sensor2;
+extern Sensor Sensor3;
+extern Sensor Sensor4;
 
 #endif

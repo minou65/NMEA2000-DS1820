@@ -16,13 +16,13 @@
 			- [Threshold (°C)](#threshold-c)
 			- [Method](#method)
 			- [Alert Description](#alert-description)
-	- [WiFi ](#wifi-)
-		- [Default Password ](#default-password-)
-		- [Default IP address ](#default-ip-address-)
-		- [OTA ](#ota-)
-		- [Configuration options ](#configuration-options-)
-		- [Blinking codes ](#blinking-codes-)
-		- [Reset ](#reset-)
+	- [WiFi](#wifi)
+		- [Default Password](#default-password)
+			- [Default IP address](#default-ip-address)
+		- [OTA](#ota)
+		- [Configuration options](#configuration-options)
+	- [Blinking codes](#blinking-codes)
+	- [Reset](#reset)
 
 ## Description <a name="description"></a>
 
@@ -72,7 +72,7 @@ Some pictures from the assabled hardware
 ### NMEA 2000 Settings
 
 #### Instance
-This should be unique at least on one device. May be best to have it unique over all devices        sending this PGN. Depending on the number of sensors connected, between 1 and 4 instances are used
+This should be unique at least on one device. May be best to have it unique over all devices sending this PGN. Depending on the number of sensors connected, between 1 and 4 instances are used, starting with the number set here.
 
 #### SID
 Sequence identifier. In most cases you can use just 255 for SID. The sequence identifier field is used to tie different PGNs data together to same sampling or calculation time.
@@ -107,22 +107,19 @@ Method with which the threshold value is compared to the current value
 #### Alert Description
 Description of the alarm
 
-## WiFi <a name="wifi"></a>
+## WiFi
 
-### Default Password <a name="wifipassword"></a>
-
+### Default Password
 When not connected to an AP the default password is 123456789
 
-### Default IP address <a name="wifiipaddress"></a>
-
+#### Default IP address
 When in AP mode, the default IP address is 192.168.4.1
 
-### OTA <a name="wifiota"></a>
+### OTA
 OTA is enabled, use default IP address or if connected to a AP the correct address.
 Port is the default port.
 
-### Configuration options <a name="wificonfiguration"></a>
-
+### Configuration options
 After the first boot, there are some values needs to be set up.
 These items are maked with __*__ (star) in the list below.
 
@@ -145,8 +142,7 @@ to connect to. __*__
 - __WiFi password__ - The password of the network above. Note, that
 unsecured passwords are not supported in your protection. __*__
 
-### Blinking codes <a name="wifiblinkingcodes"></a>
-
+## Blinking codes
 Prevoius chapters were mentioned blinking patterns, now here is a
 table summarize the menaning of the blink codes.
 
@@ -158,8 +154,7 @@ network around it. You can connect to the device with your smartphone
 WiFi network.
 - __Mostly off with occasional short flash__ - The device is online.
 
-### Reset <a name="wifireset"></a>
-
+## Reset
 When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 password to buld an AP. (E.g. in case of lost password)
 

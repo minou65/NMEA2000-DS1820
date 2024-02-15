@@ -32,10 +32,10 @@ iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDPa
 iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2KSource", "N2KSource", SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
 iotwebconf::NumberParameter SourceAlarmParam = iotwebconf::NumberParameter("N2KSourceAlarm", "N2KSourceAlarm", SourceValueAlarm, NUMBER_LEN, "23", nullptr, nullptr);
 
-SensorGroup Sensor1 = SensorGroup("sensor1");
-SensorGroup Sensor2 = SensorGroup("sensor2");
-SensorGroup Sensor3 = SensorGroup("sensor3");
-SensorGroup Sensor4 = SensorGroup("sensor4");
+Sensor Sensor1 = Sensor("sensor1");
+Sensor Sensor2 = Sensor("sensor2");
+Sensor Sensor3 = Sensor("sensor3");
+Sensor Sensor4 = Sensor("sensor4");
 
 
 iotwebconf::OptionalGroupHtmlFormatProvider optionalGroupHtmlFormatProvider;
@@ -160,13 +160,13 @@ void handleRoot()
         page.replace("{l}", "Temperaturs");
             page += HTML_Start_Table;
 
-            SensorGroup* _sensor = &Sensor1;
+            Sensor* _sensor = &Sensor1;
             while (_sensor != nullptr) {
                 if (_sensor->isActive()) {
                     page += "<tr><td align=left>" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td>" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
                 }
 
-                _sensor = (SensorGroup*)_sensor->getNext();
+                _sensor = (Sensor*)_sensor->getNext();
             }
 
         page += HTML_End_Table;
@@ -190,10 +190,11 @@ void handleRoot()
 }
 
 void convertParams() {
-    InitAlertsystem();
 
     gN2KSource[TemperaturDevice] = atoi(SourceValue);
     gN2KSource[AlarmDevice] = atoi(SourceValueAlarm);
+
+    // InitAlertsystem();
 }
 
 void configSaved() {
