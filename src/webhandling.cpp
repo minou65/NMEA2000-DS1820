@@ -15,7 +15,7 @@
 #include "common.h"
 #include "webhandling.h"
 
-extern void InitAlertsystem();
+extern void UpdateAlertSystem();
 
 
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
@@ -26,7 +26,7 @@ char SIDValue[NUMBER_LEN];
 char SourceValue[NUMBER_LEN];
 char SourceValueAlarm[NUMBER_LEN];
 iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
-iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "254", "1..254", "min='1' max='254' step='1'");
+iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "1", "1..254", "min='1' max='254' step='1'");
 iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
 
 iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2KSource", "N2KSource", SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
@@ -163,11 +163,28 @@ void handleRoot()
             Sensor* _sensor = &Sensor1;
             while (_sensor != nullptr) {
                 if (_sensor->isActive()) {
-                    page += "<tr><td align=left>" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td>" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
+                    if (_sensor->Alert.isAlert()) {
+                        page += "<tr><td align=left style=\"color:red;\">" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td style=\"color:red;\">" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
+                    }
+                    else {
+                        page += "<tr><td align=left>" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td>" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
+                    }
+                    
                 }
 
                 _sensor = (Sensor*)_sensor->getNext();
             }
+
+        page += HTML_End_Table;
+        page += HTML_End_Fieldset;
+
+        page += HTML_Start_Fieldset;
+        page += HTML_Fieldset_Legend;
+        page.replace("{l}", "Network");
+        page += HTML_Start_Table;
+
+        page += "<tr><td align=left>MAC Address:</td><td>" + String(WiFi.macAddress()) + "</td></tr>";
+        page += "<tr><td align=left>IP Address:</td><td>" + String(WiFi.localIP().toString().c_str()) + "</td></tr>";
 
         page += HTML_End_Table;
         page += HTML_End_Fieldset;
@@ -194,7 +211,7 @@ void convertParams() {
     gN2KSource[TemperaturDevice] = atoi(SourceValue);
     gN2KSource[AlarmDevice] = atoi(SourceValueAlarm);
 
-    // InitAlertsystem();
+    UpdateAlertSystem();
 }
 
 void configSaved() {
