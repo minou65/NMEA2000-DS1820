@@ -20,8 +20,10 @@
 
 #include <N2kMessages.h>
 #include <NMEA2000_CAN.h>
-#include <NMEA2000.h>
-#include "N2kAlerts.h"
+#include "N2kAlertTypes.h"
+
+
+char Version[] = "0.0.0.11 (2024-02-14)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23 };
 uint8_t gN2KInstance = 1;
@@ -29,8 +31,6 @@ uint8_t gN2KSID = 255;
 
 uint64_t DeviceId1 = 0;
 uint64_t DeviceId2 = 0;
-
-char Version[] = "0.0.0.11 (2024-02-14)"; // Manufacturer's Software version code
 
 // Setup a OneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);
@@ -63,8 +63,8 @@ void OnN2kOpen() {
 
     while (_sensor != nullptr) {
         if (_sensor->isActive()) {
-            _sensor->SchedulerAlarm.UpdateNextTime();
-            _sensor->SchedulerAlarmText.UpdateNextTime();
+            _sensor->AlarmScheduler.UpdateNextTime();
+            _sensor->TextAlarmScheduler.UpdateNextTime();
             _sensor->SchedulerTemperatur.UpdateNextTime();
         }
         _sensor = (Sensor*)_sensor->getNext();
@@ -100,6 +100,8 @@ void setup() {
     // init wifi
     wifiInit();
     InitDeviceId();
+
+    Sensor1.setActive(true);
 
     // Create GetTemperature task for core 0, loop() runs on core 1
     xTaskCreatePinnedToCore(
@@ -215,9 +217,11 @@ void InitDeviceId() {
     }
 }
 
-void InitAlertsystem() {
-    // if (!NMEA2000.IsOpen()) { return; };
+void UpdateAlertSystem() {
+    if (NMEA2000.IsOpen()) InitAlertsystem();
+}
 
+void InitAlertsystem() {
     Sensor* _sensor = &Sensor1;
     uint8_t _index = 0;
     while (_sensor != nullptr) {
@@ -239,16 +243,12 @@ void SendAlarm() {
     tN2kMsg N2kMsg;
 
     Sensor* _sensor = &Sensor1;
-    uint8_t _index = 0;
-
     while (_sensor != nullptr) {
-        if (_sensor->isActive() && _sensor->SchedulerAlarm.IsTime()) {
-            _sensor->SchedulerAlarm.UpdateNextTime();
-
+        if (_sensor->isActive() && _sensor->AlarmScheduler.IsTime()) {
+            _sensor->AlarmScheduler.UpdateNextTime();
             _sensor->Alert.SetN2kAlert(N2kMsg);
             NMEA2000.SendMsg(N2kMsg, AlarmDevice);
         }
-        _index++;
         _sensor = (Sensor*)_sensor->getNext();
     }
 }
@@ -257,16 +257,13 @@ void SendAlarmText() {
     tN2kMsg N2kMsg;
 
     Sensor* _sensor = &Sensor1;
-    uint8_t _index = 0;
-
     while (_sensor != nullptr) {
-        if (_sensor->isActive() && _sensor->SchedulerAlarmText.IsTime()) {
-            _sensor->SchedulerAlarmText.UpdateNextTime();
+        if (_sensor->isActive() && _sensor->TextAlarmScheduler.IsTime()) {
+            _sensor->TextAlarmScheduler.UpdateNextTime();
 
             _sensor->Alert.SetN2kAlertText(N2kMsg);
             NMEA2000.SendMsg(N2kMsg, AlarmDevice);
         }
-        _index++;
         _sensor = (Sensor*)_sensor->getNext();
     }
 }
@@ -282,7 +279,7 @@ void SendTemperatur(uint8_t SID_, uint8_t TempInstance_) {
             _sensor->SchedulerTemperatur.UpdateNextTime();
 
             tN2kTempSource _TempSource = tN2kTempSource(_sensor->GetSourceId());
-            double _TempValue = _sensor->GetSensorValue();
+            double _TempValue = CToKelvin(_sensor->GetSensorValue());
 
             SetN2kPGN130312(N2kMsg, SID_, _index, _TempSource, _TempValue, N2kDoubleNA);
             NMEA2000.SendMsg(N2kMsg, TemperaturDevice);
@@ -299,7 +296,9 @@ void SendTemperatur(uint8_t SID_, uint8_t TempInstance_) {
                 SetN2kPGN130310(N2kMsg, SID_, _TempValue, N2kDoubleNA);
                 NMEA2000.SendMsg(N2kMsg, TemperaturDevice);
             }
+
         }
+
         _index++;
         _sensor = (Sensor*)_sensor->getNext();
     }
@@ -322,12 +321,13 @@ void loop() {
     if (Serial.available()) {
         Serial.read();
     }
+
 }
 
 double GetTemperatur(int Index) {
     double T;
     T = sensors.getTempCByIndex(Index);
-    if (T == -127) T = 0;
+    if (T == -127) T = 9.99;
     return T;
 }
 
@@ -335,7 +335,7 @@ void loop2(void* parameter) {
     
     for (;;) {   // Endless loop
         sensors.requestTemperatures(); // Send the command to get temperatures
-        vTaskDelay(500);
+        //vTaskDelay(500);
 
         Sensor* _sensor = &Sensor1;
         uint8_t _index = 0;
@@ -343,6 +343,7 @@ void loop2(void* parameter) {
             if (_sensor->isActive()) {
                 double d = GetTemperatur(_index);
                 _sensor->SetSensorValue(d);
+                _sensor->Alert.TestAlertThreshold(d);
             }
             _index++;
             _sensor = (Sensor*)_sensor->getNext();

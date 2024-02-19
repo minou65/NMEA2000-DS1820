@@ -3,6 +3,7 @@
 // 
 
 #include "N2kAlerts.h"
+#include "N2kAlertMessagesEnumToStr.h"
 
 
 
@@ -119,7 +120,6 @@ void tN2kAlert::SetAlertExceeded() {
 			ThresholdStatus = N2kts_AlertThresholdStatusAcknowledged;
 		}
 	}
-
 }
 
 void tN2kAlert::ResetAlert() {
@@ -132,9 +132,12 @@ void tN2kAlert::ResetAlert() {
 
 tN2kAlertThresholdStatus tN2kAlert::TestAlertThreshold(uint64_t v){
 
-	//Serial.print("Threshold level: "); Serial.println(ThresholdLevel);
-	//Serial.print("Value          : "); Serial.println(v);
-	//Serial.print("Method         : "); Serial.println(ThresholdMethod);
+	//Serial.print("Threshold level : "); Serial.println(ThresholdLevel);
+	//Serial.print("Value           : "); Serial.println(v);
+	//Serial.print("Method          : "); Serial.println(N2kEnumAlertTypeToStr(ThresholdMethod));
+	//Serial.print("Alert state     : "); Serial.println(N2kEnumAlertTypeToStr(AlertState));
+	//Serial.print("Threshold status: "); Serial.println(N2kEnumAlertTypeToStr(ThresholdStatus));
+	//Serial.println("*******************************");
 
 
 	if (ThresholdMethod == N2kts_AlertThresholddMethodGreater) {
@@ -229,6 +232,17 @@ bool tN2kAlert::ParseAlertResponse(const tN2kMsg &N2kMsg){
 	}
 
 	return false;
+}
+bool tN2kAlert::isAlert(){
+	return ThresholdStatus != N2kts_AlertThresholdStatusNormal;
+}
+
+bool tN2kAlert::isAcknowledged(){
+	return AcknowledgeStatus = N2kts_AlertYes;
+}
+
+bool tN2kAlert::isSilent(){
+	return TemporarySilenceStatus = N2kts_AlertYes;
 }
 ;
 

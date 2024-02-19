@@ -41,10 +41,6 @@ static char TempSourceValues[][STRING_LEN] = {
     "6",
     "7",
     "8",
-//    "9",
-//    "10",
-//    "11",
-//    "12",
     "13",
     "14",
     "15"
@@ -60,10 +56,6 @@ static char TempSourceNames[][STRING_LEN] = {
     "Bait well temperature",
     "Refrigeration temperature",
     "Heating system temperature",
-//    "Dew point temperature",
-//    "Apparent wind chill temperature",
-//    "Theoretical wind chill temperature",
-//    "Heat index temperature",
     "Freezer temperature",
     "Exhaust gas temperature",
     "Shaft seal temparature"
@@ -89,11 +81,11 @@ static char TempSourceNames[][STRING_LEN] = {
 const char wifiInitialApPassword[] = "123456789";
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
-#define CONFIG_VERSION "A7"
+#define CONFIG_VERSION "A8"
 
 // -- When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 //      password to buld an AP. (E.g. in case of lost password)
-#define CONFIG_PIN  GPIO_NUM_36
+#define CONFIG_PIN  GPIO_NUM_13
 
 // -- Status indicator pin.
 //      First it will light up (kept LOW), on Wifi connection it will blink,
@@ -117,7 +109,7 @@ public:
         snprintf(thresholdId, STRING_LEN, "%s-threshold", this->getId());
         snprintf(methodId, STRING_LEN, "%s-method", this->getId());
         snprintf(descriptionId, STRING_LEN, "%s-description", this->getId());
-        snprintf(descriptionId, STRING_LEN, "%s-silence", this->getId());
+        snprintf(silenceId, STRING_LEN, "%s-silence", this->getId());
 
         // -- Add parameters to this group.
         this->addItem(&this->SourceParam);
@@ -126,7 +118,7 @@ public:
         this->addItem(&this->DescriptionParam);
         this->addItem(&this->TemporarySilenceParam);
 
-        value = 0.0;
+        value = 9.99;
     }
 
     char sourceValue[STRING_LEN];
@@ -153,8 +145,8 @@ public:
     uint32_t GetThresholdValue() { return atoi(thresholdValue); };
     uint16_t GetTemporarySilenceTime() { return atoi(silenceValue); };
 
-    tN2kSyncScheduler SchedulerAlarm = tN2kSyncScheduler(false, 500, 100);
-    tN2kSyncScheduler SchedulerAlarmText = tN2kSyncScheduler(false, 10000, 2000);
+    tN2kSyncScheduler AlarmScheduler = tN2kSyncScheduler(false, 500, 100);
+    tN2kSyncScheduler TextAlarmScheduler = tN2kSyncScheduler(false, 10000, 2000);
     tN2kSyncScheduler SchedulerTemperatur = tN2kSyncScheduler(false, 2000, 500);
 
     tN2kAlert Alert = tN2kAlert(N2kts_AlertTypeCaution, N2kts_AlertCategoryTechnical, 100, N2kts_AlertTriggerAuto, 100, N2kts_AlertYes, N2kts_AlertYes);

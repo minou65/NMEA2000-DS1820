@@ -45,6 +45,10 @@ public:
 
 	bool ParseAlertResponse(const tN2kMsg &N2kMsg);
 
+	bool isAlert();
+	bool isAcknowledged();
+	bool isSilent();
+
 private:
 	uint16_t AlertId;
 	uint8_t AlertPriority;
