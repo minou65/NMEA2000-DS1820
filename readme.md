@@ -16,6 +16,7 @@
 			- [Threshold (°C)](#threshold-c)
 			- [Method](#method)
 			- [Alert Description](#alert-description)
+			- [Temporary silence time (minutes)](#temporary-silence-time-minutes)
 	- [WiFi](#wifi)
 		- [Default Password](#default-password)
 			- [Default IP address](#default-ip-address)
@@ -105,7 +106,10 @@ Method with which the threshold value is compared to the current value
 - greater then
 
 #### Alert Description
-Description of the alarm
+A description for the alarm
+
+#### Temporary silence time (minutes)
+This sensor supports the Temporary silence mode. With this parameter you can set the time how long the alert should be silent.
 
 ## WiFi
 
