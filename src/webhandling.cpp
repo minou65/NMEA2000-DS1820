@@ -21,22 +21,12 @@ extern void UpdateAlertSystem();
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
 const char thingName[] = "NMEA-DS1820";
 
-char InstanceValue[NUMBER_LEN];
-char SIDValue[NUMBER_LEN];
-char SourceValue[NUMBER_LEN];
-char SourceValueAlarm[NUMBER_LEN];
-iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
-iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "1", "1..254", "min='1' max='254' step='1'");
-iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
-
-iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2KSource", "N2KSource", SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
-iotwebconf::NumberParameter SourceAlarmParam = iotwebconf::NumberParameter("N2KSourceAlarm", "N2KSourceAlarm", SourceValueAlarm, NUMBER_LEN, "23", nullptr, nullptr);
-
 Sensor Sensor1 = Sensor("sensor1");
 Sensor Sensor2 = Sensor("sensor2");
 Sensor Sensor3 = Sensor("sensor3");
 Sensor Sensor4 = Sensor("sensor4");
 
+NMEAConfig Config = NMEAConfig();
 
 iotwebconf::OptionalGroupHtmlFormatProvider optionalGroupHtmlFormatProvider;
 
@@ -66,10 +56,7 @@ void wifiInit() {
     iotWebConf.setConfigPin(CONFIG_PIN);
     iotWebConf.setHtmlFormatProvider(&optionalGroupHtmlFormatProvider);
 
-    InstanceGroup.addItem(&InstanceParam);
-    InstanceGroup.addItem(&SIDParam);
-
-    iotWebConf.addParameterGroup(&InstanceGroup);
+    iotWebConf.addParameterGroup(&Config);
 
     iotWebConf.addParameterGroup(&Sensor1);
     Sensor1.setActive(true);
@@ -88,9 +75,6 @@ void wifiInit() {
         Sensor3.setNext(&Sensor4);
         iotWebConf.addParameterGroup(&Sensor4);
     }
-
-    iotWebConf.addHiddenParameter(&SourceParam);
-    iotWebConf.addHiddenParameter(&SourceAlarmParam);
 
     iotWebConf.setConfigSavedCallback(&configSaved);
     iotWebConf.setWifiConnectionCallback(&wifiConnected);
@@ -120,11 +104,8 @@ void wifiLoop() {
     if (gSaveParams) {
         Serial.println(F("Parameters are changed,save them"));
 
-        String s = (String)gN2KSource[TemperaturDevice];
-        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
-
-        s = (String)gN2KSource[AlarmDevice];
-        strncpy(SourceAlarmParam.valueBuffer, s.c_str(), NUMBER_LEN);
+        Config.SetSource(gN2KSource[TemperaturDevice]);
+        Config.SetSourceAlert(gN2KSource[AlarmDevice]);
 
         iotWebConf.saveConfig();
         gSaveParams = false;
@@ -208,8 +189,8 @@ void handleRoot()
 
 void convertParams() {
 
-    gN2KSource[TemperaturDevice] = atoi(SourceValue);
-    gN2KSource[AlarmDevice] = atoi(SourceValueAlarm);
+    gN2KSource[TemperaturDevice] = Config.Source();
+    gN2KSource[AlarmDevice] = Config.SourceAlert();
 
     UpdateAlertSystem();
 }

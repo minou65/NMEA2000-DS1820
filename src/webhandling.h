@@ -16,8 +16,8 @@
 #include "N2kAlerts.h"
 
 
-#define STRING_LEN 128
-#define NUMBER_LEN 32
+#define STRING_LEN 60
+#define NUMBER_LEN 5
 
 static char TThresholdMethodValues[][STRING_LEN] = {
     "0",
@@ -101,6 +101,8 @@ const char wifiInitialApPassword[] = "123456789";
 extern void wifiInit();
 extern void wifiLoop();
 
+extern IotWebConf iotWebConf;
+
 class Sensor : public iotwebconf::ChainedParameterGroup {
 public:
     Sensor(const char* id) : ChainedParameterGroup(id, "Sensor") {
@@ -159,6 +161,64 @@ private:
     char silenceId[String_Len];
     double value;
 
+};
+
+class NMEAConfig : public iotwebconf::ParameterGroup {
+public:
+    NMEAConfig() : ParameterGroup("nmeaconfig", "NMEA configuration") {
+        snprintf(instanceID, STRING_LEN, "%s-instance", this->getId());
+        snprintf(sidID, STRING_LEN, "%s-sid", this->getId());
+        snprintf(sourceID, STRING_LEN, "%s-source", this->getId());
+
+        this->addItem(&this->InstanceParam);
+        this->addItem(&this->SIDParam);
+
+        iotWebConf.addHiddenParameter(&SourceParam);
+
+        // additional sources
+        snprintf(sourceIDAlert, STRING_LEN, "%s-sourceAlert", this->getId());
+
+        iotWebConf.addHiddenParameter(&SourceAlertParam);
+
+    }
+
+    uint8_t Instance() { return atoi(InstanceValue); };
+    uint8_t SID() { return atoi(SIDValue); };
+    uint8_t Source() { return atoi(SourceValue); };
+
+    void SetSource(uint8_t source_) {
+        String s;
+        s = (String)source_;
+        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
+    }
+
+    // additional sources
+    uint8_t SourceAlert() { return atoi(SourceAlertValue); };
+
+    void SetSourceAlert(uint8_t source_) {
+        String s;
+        s = (String)source_;
+        strncpy(SourceAlertParam.valueBuffer, s.c_str(), NUMBER_LEN);
+    }
+
+private:
+    iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", instanceID, InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
+    iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", sidID, SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
+    iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("Source", sourceID, SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
+
+    char InstanceValue[NUMBER_LEN];
+    char SIDValue[NUMBER_LEN];
+    char SourceValue[NUMBER_LEN];
+
+
+    char instanceID[STRING_LEN];
+    char sidID[STRING_LEN];
+    char sourceID[STRING_LEN];
+
+    // additional sources
+    iotwebconf::NumberParameter SourceAlertParam = iotwebconf::NumberParameter("SourceAlert", sourceIDAlert, SourceAlertValue, NUMBER_LEN, "23", nullptr, nullptr);
+    char SourceAlertValue[NUMBER_LEN];
+    char sourceIDAlert[STRING_LEN];
 };
 
 extern Sensor Sensor1;
