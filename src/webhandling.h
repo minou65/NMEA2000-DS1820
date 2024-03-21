@@ -11,6 +11,7 @@
 
 #include <IotWebConf.h>
 #include <IotWebConfOptionalGroup.h>
+#include <IotWebConfESP32HTTPUpdateServer.h>
 #include <DNSServer.h>
 #include <N2kTimer.h>
 #include "N2kAlerts.h"

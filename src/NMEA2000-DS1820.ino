@@ -23,7 +23,7 @@
 #include "N2kAlertTypes.h"
 
 
-char Version[] = "0.0.0.11 (2024-02-14)"; // Manufacturer's Software version code
+char Version[] = "1.0.0.0 (2024-03-21)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23 };
 uint8_t gN2KInstance = 1;

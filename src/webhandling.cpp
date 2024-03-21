@@ -43,6 +43,7 @@ bool gSaveParams = false;
 
 DNSServer dnsServer;
 WebServer server(80);
+HTTPUpdateServer httpUpdater;
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
 
@@ -75,6 +76,11 @@ void wifiInit() {
         Sensor3.setNext(&Sensor4);
         iotWebConf.addParameterGroup(&Sensor4);
     }
+
+    // -- Define how to handle updateServer calls.
+    iotWebConf.setupUpdateServer(
+        [](const char* updatePath) { httpUpdater.setup(&server, updatePath); },
+        [](const char* userName, char* password) { httpUpdater.updateCredentials(userName, password); });
 
     iotWebConf.setConfigSavedCallback(&configSaved);
     iotWebConf.setWifiConnectionCallback(&wifiConnected);
