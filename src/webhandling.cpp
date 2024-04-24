@@ -28,7 +28,15 @@ Sensor Sensor4 = Sensor("sensor4");
 
 NMEAConfig Config = NMEAConfig();
 
-iotwebconf::OptionalGroupHtmlFormatProvider optionalGroupHtmlFormatProvider;
+class CustomHtmlFormatProvider : public iotwebconf::OptionalGroupHtmlFormatProvider {
+protected:
+    virtual String getFormEnd() {
+        String _s = OptionalGroupHtmlFormatProvider::getFormEnd();
+        _s += F("</br>Return to <a href='/'>home page</a>.");
+        return _s;
+    }
+};
+CustomHtmlFormatProvider customHtmlFormatProvider;
 
 // -- Method declarations.
 void handleRoot();
@@ -55,7 +63,7 @@ void wifiInit() {
 
     iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL); 
     iotWebConf.setConfigPin(CONFIG_PIN);
-    iotWebConf.setHtmlFormatProvider(&optionalGroupHtmlFormatProvider);
+    iotWebConf.setHtmlFormatProvider(&customHtmlFormatProvider);
 
     iotWebConf.addParameterGroup(&Config);
 
