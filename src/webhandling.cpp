@@ -39,6 +39,7 @@ protected:
 CustomHtmlFormatProvider customHtmlFormatProvider;
 
 // -- Method declarations.
+void handleData();
 void handleRoot();
 void convertParams();
 
@@ -105,6 +106,7 @@ void wifiInit() {
     // -- Set up required URL handlers on the web server.
     server.on("/", handleRoot);
     server.on("/config", [] { iotWebConf.handleConfig(); });
+    server.on("/data", HTTP_GET, []() { handleData(); });
     server.onNotFound([]() { iotWebConf.handleNotFound(); });
 
     Serial.println("Ready.");
@@ -130,6 +132,25 @@ void wifiConnected() {
     ArduinoOTA.begin();
 }
 
+void handleData() {
+	String _response = "{";
+    Sensor* _sensor = &Sensor1;
+    uint8_t _i = 1;
+    while (_sensor != nullptr) {
+        if (_sensor->isActive()) {
+            _response += "\"sensor" + String(_i) + "\":\"" + String(_sensor->GetSensorValue(), 2) + "\"";
+            _sensor = (Sensor*)_sensor->getNext();
+
+            if (_sensor != nullptr) {
+				_response += ",";
+			}
+            _i++;
+        }
+    }
+    _response += "}";
+	server.send(200, "text/plain", _response);
+}
+
 void handleRoot()
 {
     // -- Let IotWebConf test and handle captive portal requests.
@@ -145,8 +166,8 @@ void handleRoot()
     page += ".de{background-color:#ffaaaa;} .em{font-size:0.8em;color:#bb0000;padding-bottom:0px;} .c{text-align: center;} div,input,select{padding:5px;font-size:1em;} input{width:95%;} select{width:100%} input[type=checkbox]{width:auto;scale:1.5;margin:10px;} body{text-align: center;font-family:verdana;} button{border:0;border-radius:0.3rem;background-color:#16A1E7;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;} fieldset{border-radius:0.3rem;margin: 0px;}";
     // page.replace("center", "left");
     page += "</style>";
-    page += "<meta http-equiv=refresh content=15 />";
     page += HTML_Start_Body;
+    page += HTML_JAVA_Script;
     page += "<table border=0 align=center>";
     page += "<tr><td>";
 
@@ -156,18 +177,21 @@ void handleRoot()
             page += HTML_Start_Table;
 
             Sensor* _sensor = &Sensor1;
+            uint8_t _i = 1;
             while (_sensor != nullptr) {
                 if (_sensor->isActive()) {
-                    if (_sensor->Alert.isAlert()) {
-                        page += "<tr><td align=left style=\"color:red;\">" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td style=\"color:red;\">" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
-                    }
-                    else {
-                        page += "<tr><td align=left>" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td>" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
-                    }
+                    //if (_sensor->Alert.isAlert()) {
+                    //    page += "<tr><td align=left style=\"color:red;\">" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td style=\"color:red;\">" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
+                    //}
+                    //else {
+                    //    page += "<tr><td align=left>" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td>" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
+                    //}
+                    page += "<tr><td align=left>" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td><span id='sensor" + String(_i) + "'>0.00</span>&deg;C</td></tr>";
                     
                 }
 
                 _sensor = (Sensor*)_sensor->getNext();
+                _i++;
             }
 
         page += HTML_End_Table;

@@ -77,6 +77,38 @@ static char TempSourceNames[][STRING_LEN] = {
 #define HTML_End_Doc "</html>";
 #define HTML_Fieldset_Legend "<legend>{l}</legend>"
 #define HTML_Table_Row "<tr><td>{n}</td><td>{v}</td></tr>";
+#define HTML_JAVA_Script \
+"<script>\n \
+    // get intial data straight away \n \
+    requestData(); \n \
+\n \
+    // request data updates every milliseconds\n \
+    setInterval(requestData, 5000);\n \
+\n \
+    function requestData() {\n \
+		var xhttp = new XMLHttpRequest();\n \
+		xhttp.onreadystatechange = function() {\n \
+			if (this.readyState == 4 && this.status == 200) {\n \
+				var json = JSON.parse(this.responseText);\n \
+				updateData(json);\n \
+			}\n \
+		};\n \
+        xhttp.open('GET', 'data', true);\n \
+		xhttp.send();\n \
+	}\n \
+\n \
+    function updateData(jsonData) { \n \
+		const sensor1element = document.getElementById('sensor1'); \n \
+		if (sensor1element) { sensor1element.innerHTML = jsonData.sensor1; }\n \
+		const sensor2element = document.getElementById('sensor2'); \n \
+		if (sensor2element) { sensor2element.innerHTML = jsonData.sensor2; }\n \
+		const sensor3element = document.getElementById('sensor3'); \n \
+		if (sensor3element) { sensor3element.innerHTML = jsonData.sensor3; }\n \
+		const sensor4element = document.getElementById('sensor4'); \n \
+		if (sensor4element) { sensor4element.innerHTML = jsonData.sensor4; }\n \
+    }\n \
+</script>\
+";
 
 // -- Initial password to connect to the Thing, when it creates an own Access Point.
 const char wifiInitialApPassword[] = "123456789";
