@@ -22,8 +22,6 @@
 #include <NMEA2000_CAN.h>
 #include "N2kAlertTypes.h"
 
-
-<<<<<<< HEAD
 char Version[] = "1.0.0.2 (2024-04-28)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23 };
