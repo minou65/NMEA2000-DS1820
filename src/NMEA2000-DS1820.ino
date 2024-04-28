@@ -23,7 +23,7 @@
 #include "N2kAlertTypes.h"
 
 
-char Version[] = "1.0.0.0 (2024-03-21)"; // Manufacturer's Software version code
+char Version[] = "1.0.0.2 (2024-04-28)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23 };
 uint8_t gN2KInstance = 1;
@@ -190,7 +190,6 @@ void setup() {
     // If you also want to see all traffic on the bus use N2km_ListenAndNode instead of N2km_NodeOnly below
     NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly);
 
-    // If you also want to see all traffic on the bus use N2km_ListenAndNode instead of N2km_NodeOnly below
     NMEA2000.SetN2kSource(gN2KSource[TemperaturDevice], TemperaturDevice);
     NMEA2000.SetN2kSource(gN2KSource[AlarmDevice], AlarmDevice);
 
