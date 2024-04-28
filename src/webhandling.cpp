@@ -14,6 +14,7 @@
 
 #include "common.h"
 #include "webhandling.h"
+#include "IotWebRoot.h"
 
 extern void UpdateAlertSystem();
 
@@ -39,6 +40,7 @@ protected:
 CustomHtmlFormatProvider customHtmlFormatProvider;
 
 // -- Method declarations.
+void handleData();
 void handleRoot();
 void convertParams();
 
@@ -73,16 +75,19 @@ void wifiInit() {
     if (gDeviceCount >= 2) {
         Sensor1.setNext(&Sensor2);
         iotWebConf.addParameterGroup(&Sensor2);
+        Sensor2.setActive(true);
     }
 
     if (gDeviceCount >= 3) {
         Sensor2.setNext(&Sensor3);
         iotWebConf.addParameterGroup(&Sensor3);
+        Sensor3.setActive(true);
     }
 
     if (gDeviceCount >= 4) {
         Sensor3.setNext(&Sensor4);
         iotWebConf.addParameterGroup(&Sensor4);
+        Sensor4.setActive(true);
     }
 
     // -- Define how to handle updateServer calls.
@@ -105,6 +110,7 @@ void wifiInit() {
     // -- Set up required URL handlers on the web server.
     server.on("/", handleRoot);
     server.on("/config", [] { iotWebConf.handleConfig(); });
+    server.on("/data", HTTP_GET, []() { handleData(); });
     server.onNotFound([]() { iotWebConf.handleNotFound(); });
 
     Serial.println("Ready.");
@@ -130,6 +136,49 @@ void wifiConnected() {
     ArduinoOTA.begin();
 }
 
+void handleData() {
+	String _response = "{";
+    _response += "\"rssi\":\"" + String(WiFi.RSSI()) + "\",";
+    Sensor* _sensor = &Sensor1;
+    uint8_t _i = 1;
+    while (_sensor != nullptr) {
+        if (_sensor->isActive()) {
+            _response += "\"sensor" + String(_i) + "\":\"" + String(_sensor->GetSensorValue(), 2) + "\"";
+        }
+        _sensor = (Sensor*)_sensor->getNext();
+
+        if (_sensor != nullptr) {
+            _response += ",";
+        }
+        _i++;
+    }
+    _response += "}";
+	server.send(200, "text/plain", _response);
+}
+
+class MyHtmlRootFormatProvider : public HtmlRootFormatProvider {
+protected:
+    virtual String getScriptInner() {
+        String _s = HtmlRootFormatProvider::getScriptInner();
+        _s.replace("{millisecond}", "5000");
+        _s += F("function updateData(jsonData) {\n");
+        _s += F("   document.getElementById('RSSIValue').innerHTML = jsonData.rssi + \"dBm\" \n");
+		Sensor* _sensor = &Sensor1;
+        uint8_t _i = 1;
+        while (_sensor != nullptr) {
+            if (_sensor->isActive()) {
+				_s += "   document.getElementById('sensor" + String(_i) + "').innerHTML = jsonData.sensor" + String(_i) + " + \"&deg;C\" \n";
+			}
+			_sensor = (Sensor*)_sensor->getNext();
+			_i++;
+		}
+
+        _s += F("}\n");
+        
+        return _s;
+    }
+};
+
 void handleRoot()
 {
     // -- Let IotWebConf test and handle captive portal requests.
@@ -139,69 +188,62 @@ void handleRoot()
         return;
     }
 
-    String page = HTML_Start_Doc;
-    page.replace("{v}", iotWebConf.getThingName());
-    page += "<style>";
-    page += ".de{background-color:#ffaaaa;} .em{font-size:0.8em;color:#bb0000;padding-bottom:0px;} .c{text-align: center;} div,input,select{padding:5px;font-size:1em;} input{width:95%;} select{width:100%} input[type=checkbox]{width:auto;scale:1.5;margin:10px;} body{text-align: center;font-family:verdana;} button{border:0;border-radius:0.3rem;background-color:#16A1E7;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;} fieldset{border-radius:0.3rem;margin: 0px;}";
-    // page.replace("center", "left");
-    page += "</style>";
-    page += "<meta http-equiv=refresh content=15 />";
-    page += HTML_Start_Body;
-    page += "<table border=0 align=center>";
-    page += "<tr><td>";
+    MyHtmlRootFormatProvider rootFormatProvider;
 
-        page += HTML_Start_Fieldset;
-        page += HTML_Fieldset_Legend;
-        page.replace("{l}", "Temperaturs");
-            page += HTML_Start_Table;
+    String _response = "";
+    _response += rootFormatProvider.getHtmlHead(iotWebConf.getThingName());
+    _response += rootFormatProvider.getHtmlStyle();
+    _response += rootFormatProvider.getHtmlHeadEnd();
+    _response += rootFormatProvider.getHtmlScript();
 
-            Sensor* _sensor = &Sensor1;
-            while (_sensor != nullptr) {
-                if (_sensor->isActive()) {
-                    if (_sensor->Alert.isAlert()) {
-                        page += "<tr><td align=left style=\"color:red;\">" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td style=\"color:red;\">" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
-                    }
-                    else {
-                        page += "<tr><td align=left>" + String(TempSourceNames[_sensor->GetSourceId()]) + ":</td><td>" + String(_sensor->GetSensorValue()) + "&deg;C" + "</td></tr>";
-                    }
-                    
-                }
+    _response += rootFormatProvider.getHtmlTable();
+    _response += rootFormatProvider.getHtmlTableRow() + rootFormatProvider.getHtmlTableCol();
 
-                _sensor = (Sensor*)_sensor->getNext();
+    _response += F("<fieldset align=left style=\"border: 1px solid\">\n");
+        _response += F("<table border=\"0\" align=\"center\" width=\"100%\">\n");
+        _response += F("<tr><td align=\"left\"> </td></td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr>\n");
+        _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlFieldsetEnd();
+
+    _response += rootFormatProvider.getHtmlFieldset("Temperature");
+        _response += rootFormatProvider.getHtmlTable();
+        Sensor* _sensor = &Sensor1;
+        uint8_t _i = 1;
+        while (_sensor != nullptr) {
+            if (_sensor->isActive()) {
+                _response += rootFormatProvider.getHtmlTableRowSpan(String(TempSourceNames[_sensor->GetSourceId()]),  "no data", "sensor" + String(_i));
             }
+            _sensor = (Sensor*)_sensor->getNext();
+            _i++;
+        }
+        _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlFieldsetEnd();
 
-        page += HTML_End_Table;
-        page += HTML_End_Fieldset;
+    _response += rootFormatProvider.getHtmlFieldset("Network");
+        _response += rootFormatProvider.getHtmlTable();
+        _response += rootFormatProvider.getHtmlTableRowText("MAC Address:", WiFi.macAddress());
+        _response += rootFormatProvider.getHtmlTableRowText("IP Address:", WiFi.localIP().toString().c_str());
+        _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlFieldsetEnd();
 
-        page += HTML_Start_Fieldset;
-        page += HTML_Fieldset_Legend;
-        page.replace("{l}", "Network");
-        page += HTML_Start_Table;
+    _response += rootFormatProvider.addNewLine(2);
 
-        page += "<tr><td align=left>MAC Address:</td><td>" + String(WiFi.macAddress()) + "</td></tr>";
-        page += "<tr><td align=left>IP Address:</td><td>" + String(WiFi.localIP().toString().c_str()) + "</td></tr>";
+    _response += rootFormatProvider.getHtmlTable();
+        _response += rootFormatProvider.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration.");
+        _response += rootFormatProvider.getHtmlTableRowText(rootFormatProvider.getHtmlVersion(Version));
+        _response += rootFormatProvider.getHtmlTableEnd();
 
-        page += HTML_End_Table;
-        page += HTML_End_Fieldset;
+        _response += rootFormatProvider.getHtmlTableColEnd() + rootFormatProvider.getHtmlTableRowEnd();
+        _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlEnd();
 
-        page += "<br>";
-        page += "<br>";
-
-        page += HTML_Start_Table;
-        page += "<tr><td align=left>Go to <a href = 'config'>configure page</a> to change configuration.</td></tr>";
-        // page += "<tr><td align=left>Go to <a href='setruntime'>runtime modification page</a> to change runtime data.</td></tr>";
-
-        page += "<tr><td><font size=1>Version: " + String(Version) + "</font></td></tr>";
-        page += HTML_End_Table;
-        page += HTML_End_Body;
-
-        page += HTML_End_Doc;
-
-
-    server.send(200, "text/html", page);
+    server.send(200, "text/html", _response);
 }
 
 void convertParams() {
+
+    gN2KInstance = Config.Instance();
+    gN2KSID = Config.SID();
 
     gN2KSource[TemperaturDevice] = Config.Source();
     gN2KSource[AlarmDevice] = Config.SourceAlert();

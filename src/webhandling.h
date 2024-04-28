@@ -17,16 +17,16 @@
 #include "N2kAlerts.h"
 
 
-#define STRING_LEN 60
+#define STRING_LEN 64
 #define NUMBER_LEN 5
 
-static char TThresholdMethodValues[][STRING_LEN] = {
+static char ThresholdMethodValues[][STRING_LEN] = {
     "0",
     "1",
     "2"
 };
 
-static char TThresholdMethodNames[][STRING_LEN] = {
+static char ThresholdMethodNames[][STRING_LEN] = {
     "equal",
     "lower than",
     "greater than"
@@ -62,27 +62,11 @@ static char TempSourceNames[][STRING_LEN] = {
     "Shaft seal temparature"
 };
 
-
-#define HTML_Start_Doc "<!DOCTYPE html>\
-    <html lang=\"en\"><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1, user-scalable=no\"/>\
-    <title>{v}</title>\
-";
-
-#define HTML_Start_Body "</head><body>";
-#define HTML_Start_Fieldset "<fieldset align=left style=\"border: 1px solid\">";
-#define HTML_Start_Table "<table border=0 align=center>";
-#define HTML_End_Table "</table>";
-#define HTML_End_Fieldset "</fieldset>";
-#define HTML_End_Body "</body>";
-#define HTML_End_Doc "</html>";
-#define HTML_Fieldset_Legend "<legend>{l}</legend>"
-#define HTML_Table_Row "<tr><td>{n}</td><td>{v}</td></tr>";
-
 // -- Initial password to connect to the Thing, when it creates an own Access Point.
 const char wifiInitialApPassword[] = "123456789";
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
-#define CONFIG_VERSION "A8"
+#define CONFIG_VERSION "A9"
 
 // -- When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 //      password to buld an AP. (E.g. in case of lost password)
@@ -135,7 +119,7 @@ public:
     iotwebconf::NumberParameter ThresholdParam = iotwebconf::NumberParameter("Threshold (&deg;C)", thresholdId, thresholdValue, NUMBER_LEN, "0", "0..200", "min='0' max='200' step='1'");
 
     iotwebconf::SelectParameter MethodParam = iotwebconf::SelectParameter("Method", methodId, methodValue, STRING_LEN,
-        (char*)TThresholdMethodValues, (char*)TThresholdMethodNames, sizeof(TThresholdMethodValues) / STRING_LEN, STRING_LEN, "2");
+        (char*)ThresholdMethodValues, (char*)ThresholdMethodNames, sizeof(ThresholdMethodValues) / STRING_LEN, STRING_LEN, "2");
 
     iotwebconf::TextParameter DescriptionParam = iotwebconf::TextParameter("Alert Description", descriptionId, descriptionValue, STRING_LEN, "Alert");
 
@@ -169,17 +153,21 @@ public:
     NMEAConfig() : ParameterGroup("nmeaconfig", "NMEA configuration") {
         snprintf(instanceID, STRING_LEN, "%s-instance", this->getId());
         snprintf(sidID, STRING_LEN, "%s-sid", this->getId());
-        snprintf(sourceID, STRING_LEN, "%s-source", this->getId());
+        snprintf(sourceID, STRING_LEN, "%s-n2ksource", this->getId());
 
         this->addItem(&this->InstanceParam);
         this->addItem(&this->SIDParam);
 
-        iotWebConf.addHiddenParameter(&SourceParam);
+         //iotWebConf.addHiddenParameter(&this->SourceParam);
+        this->addItem(&this->SourceParam);
+        SourceParam.visible = false;
 
         // additional sources
         snprintf(sourceIDAlert, STRING_LEN, "%s-sourceAlert", this->getId());
 
-        iotWebConf.addHiddenParameter(&SourceAlertParam);
+        // iotWebConf.addHiddenParameter(&this->SourceAlertParam);
+        this->addItem(&this->SourceAlertParam);
+        SourceAlertParam.visible = false;
 
     }
 
@@ -205,7 +193,7 @@ public:
 private:
     iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", instanceID, InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
     iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", sidID, SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
-    iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("Source", sourceID, SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
+    iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2kSource", sourceID, SourceValue, NUMBER_LEN, "22");
 
     char InstanceValue[NUMBER_LEN];
     char SIDValue[NUMBER_LEN];
@@ -217,7 +205,7 @@ private:
     char sourceID[STRING_LEN];
 
     // additional sources
-    iotwebconf::NumberParameter SourceAlertParam = iotwebconf::NumberParameter("SourceAlert", sourceIDAlert, SourceAlertValue, NUMBER_LEN, "23", nullptr, nullptr);
+    iotwebconf::NumberParameter SourceAlertParam = iotwebconf::NumberParameter("N2kSourceAlert", sourceIDAlert, SourceAlertValue, NUMBER_LEN, "23");
     char SourceAlertValue[NUMBER_LEN];
     char sourceIDAlert[STRING_LEN];
 };
