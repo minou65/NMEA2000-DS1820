@@ -3,10 +3,10 @@
 ## Table of contents
 - [NMEA2000-DS1820 Temperatur Monitor](#nmea2000-ds1820-temperatur-monitor)
 	- [Table of contents](#table-of-contents)
-	- [Description ](#description-)
-	- [NMEA 2000 ](#nmea-2000-)
-	- [Librarys ](#librarys-)
-	- [Required hardware ](#required-hardware-)
+	- [Description](#description)
+	- [NMEA 2000](#nmea-2000)
+	- [Librarys](#librarys)
+	- [Required hardware](#required-hardware)
 	- [Settings](#settings)
 		- [NMEA 2000 Settings](#nmea-2000-settings)
 			- [Instance](#instance)
@@ -25,14 +25,20 @@
 	- [Blinking codes](#blinking-codes)
 	- [Reset](#reset)
 
-## Description <a name="description"></a>
+## Description
+The device consists of a temperature sensor that can accommodate up to 4 DS1820 sensors. Each DS1820 sensor can be configured to measure temperature from -50°C (-58°F) up to 125°C (257°F). You can select the temperature source for each sensor (e.g., alternator, shaft seal, oil filter). An alarm threshold can be set for each sensor, triggering a predefined alarm when the temperature exceeds the threshold.
 
-This device can monitor temperaturs and send the values over a NMEA 2000 bus. The values can also be viewed via a web interface, For that the Device should be connected to a wifi AP
+**Communication via NMEA 2000:**
+The temperature values and alarms are transmitted as NMEA 2000 messages over an NMEA bus.
+The NMEA 2000 network provides power to the sensor.
 
+**Configuration and Monitoring:**
+The sensor’s configuration is done through a web interface. You can als monitor all temperaturs through the webinterface
 
+**Firmware Updates:**
+The configuration page provides a link for convenient firmware updates.
 
-## NMEA 2000 <a name="nmea2000"></a>
-
+## NMEA 2000
 Depending on the temperature source, one of the following PNGs are sent
 
 - 130310, // Environmental Parameters - DEPRECATED
@@ -45,8 +51,7 @@ The device is also capable of sending alerts. In this case these PGN's are used
 - 126985, // Alert text
 
 
-## Librarys <a name="libs"></a>
-
+## Librarys
 The Software has been created using Visual Studio with the addon Visual Micro. In order to build it you als need some libraries.
 
 - prampec/IotWebConf
@@ -55,8 +60,7 @@ The Software has been created using Visual Studio with the addon Visual Micro. I
 - NMEA2000
 - NMEA200_ESP
 
-## Required hardware <a name="hardware"></a>
-
+## Required hardware
 The number of connected sensors is recognized automatically. A maximum of 4 DS1820 can be connected.
 
 The following [schema](/sch/NMEA2000-DS1820.pdf) show you, how to put all together.
@@ -69,9 +73,7 @@ Some pictures from the assabled hardware
 
 
 ## Settings
-
 ### NMEA 2000 Settings
-
 #### Instance
 This should be unique at least on one device. May be best to have it unique over all devices sending this PGN. Depending on the number of sensors connected, between 1 and 4 instances are used, starting with the number set here.
 
