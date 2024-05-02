@@ -11,24 +11,36 @@
 #include <time.h>
 //needed for library
 
-#include <DNSServer.h>
-
-#include <IotWebConf.h>
 
 #include "common.h"
 #include "webhandling.h"
+#include "IotWebRoot.h"
+
+extern void UpdateAlertSystem();
 
 
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
 const char thingName[] = "NMEA-DS1820";
 
-tTemperatur gTemperaturs[4] = {
-    {N2kts_SeaTemperature, 0.0},
-    {N2kts_OutsideTemperature, 0.0},
-    {N2kts_InsideTemperature, 0.0},
-    {N2kts_EngineRoomTemperature, 0.0} };
+Sensor Sensor1 = Sensor("sensor1");
+Sensor Sensor2 = Sensor("sensor2");
+Sensor Sensor3 = Sensor("sensor3");
+Sensor Sensor4 = Sensor("sensor4");
+
+NMEAConfig Config = NMEAConfig();
+
+class CustomHtmlFormatProvider : public iotwebconf::OptionalGroupHtmlFormatProvider {
+protected:
+    virtual String getFormEnd() {
+        String _s = OptionalGroupHtmlFormatProvider::getFormEnd();
+        _s += F("</br>Return to <a href='/'>home page</a>.");
+        return _s;
+    }
+};
+CustomHtmlFormatProvider customHtmlFormatProvider;
 
 // -- Method declarations.
+void handleData();
 void handleRoot();
 void convertParams();
 
@@ -41,65 +53,9 @@ bool gSaveParams = false;
 
 DNSServer dnsServer;
 WebServer server(80);
+HTTPUpdateServer httpUpdater;
 
 IotWebConf iotWebConf(thingName, &dnsServer, &server, wifiInitialApPassword, CONFIG_VERSION);
-
-char InstanceValue[NUMBER_LEN];
-char SIDValue[NUMBER_LEN];
-char SourceValue[NUMBER_LEN];
-iotwebconf::ParameterGroup InstanceGroup = iotwebconf::ParameterGroup("InstanceGroup", "NMEA 2000 Settings");
-iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", "InstanceParam", InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
-iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", "SIDParam", SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
-iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2KSource", "N2KSource", SourceValue, NUMBER_LEN, "22", nullptr, nullptr);
-
-char TempSourceValue1[STRING_LEN];
-iotwebconf::ParameterGroup TempSourceGroup = iotwebconf::ParameterGroup("TemperaturGroup", "Temperatur source");
-iotwebconf::SelectParameter TempSource1 = iotwebconf::SelectParameter("Sensor 1",
-    "TempSource1",
-    TempSourceValue1,
-    STRING_LEN,
-    (char*)TempSourceValues,
-    (char*)TempSourceNames,
-    sizeof(TempSourceValues) / STRING_LEN,
-    STRING_LEN,
-    TempSourceNames[gTemperaturs[0].Source]
-);
-
-char TempSourceValue2[STRING_LEN];
-iotwebconf::SelectParameter TempSource2 = iotwebconf::SelectParameter("Sensor 2",
-    "TempSource2",
-    TempSourceValue2,
-    STRING_LEN,
-    (char*)TempSourceValues,
-    (char*)TempSourceNames,
-    sizeof(TempSourceValues) / STRING_LEN,
-    STRING_LEN,
-    TempSourceNames[gTemperaturs[1].Source]
-);
-
-char TempSourceValue3[STRING_LEN];
-iotwebconf::SelectParameter TempSource3 = iotwebconf::SelectParameter("Sensor 3",
-    "TempSource3",
-    TempSourceValue3,
-    STRING_LEN,
-    (char*)TempSourceValues,
-    (char*)TempSourceNames,
-    sizeof(TempSourceValues) / STRING_LEN,
-    STRING_LEN,
-    TempSourceNames[gTemperaturs[2].Source]
-);
-
-char TempSourceValue4[STRING_LEN];
-iotwebconf::SelectParameter TempSource4 = iotwebconf::SelectParameter("Sensor 4",
-    "TempSource4",
-    TempSourceValue4,
-    STRING_LEN,
-    (char*)TempSourceValues,
-    (char*)TempSourceNames,
-    sizeof(TempSourceValues) / STRING_LEN,
-    STRING_LEN,
-    TempSourceNames[gTemperaturs[3].Source]
-);
 
 void wifiInit() {
     Serial.begin(115200);
@@ -107,28 +63,37 @@ void wifiInit() {
     Serial.println("starting up...");
 
 
-    iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL);
+    iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL); 
     iotWebConf.setConfigPin(CONFIG_PIN);
+    iotWebConf.setHtmlFormatProvider(&customHtmlFormatProvider);
 
-    InstanceGroup.addItem(&InstanceParam);
-    InstanceGroup.addItem(&SIDParam);
-    iotWebConf.addHiddenParameter(&SourceParam);
-    iotWebConf.addParameterGroup(&InstanceGroup);
+    iotWebConf.addParameterGroup(&Config);
 
-    TempSourceGroup.addItem(&TempSource1);
+    iotWebConf.addParameterGroup(&Sensor1);
+    Sensor1.setActive(true);
 
     if (gDeviceCount >= 2) {
-        TempSourceGroup.addItem(&TempSource2);
+        Sensor1.setNext(&Sensor2);
+        iotWebConf.addParameterGroup(&Sensor2);
+        Sensor2.setActive(true);
     }
 
     if (gDeviceCount >= 3) {
-        TempSourceGroup.addItem(&TempSource3);
+        Sensor2.setNext(&Sensor3);
+        iotWebConf.addParameterGroup(&Sensor3);
+        Sensor3.setActive(true);
     }
 
     if (gDeviceCount >= 4) {
-        TempSourceGroup.addItem(&TempSource4);
+        Sensor3.setNext(&Sensor4);
+        iotWebConf.addParameterGroup(&Sensor4);
+        Sensor4.setActive(true);
     }
-    iotWebConf.addParameterGroup(&TempSourceGroup);
+
+    // -- Define how to handle updateServer calls.
+    iotWebConf.setupUpdateServer(
+        [](const char* updatePath) { httpUpdater.setup(&server, updatePath); },
+        [](const char* userName, char* password) { httpUpdater.updateCredentials(userName, password); });
 
     iotWebConf.setConfigSavedCallback(&configSaved);
     iotWebConf.setWifiConnectionCallback(&wifiConnected);
@@ -145,6 +110,7 @@ void wifiInit() {
     // -- Set up required URL handlers on the web server.
     server.on("/", handleRoot);
     server.on("/config", [] { iotWebConf.handleConfig(); });
+    server.on("/data", HTTP_GET, []() { handleData(); });
     server.onNotFound([]() { iotWebConf.handleNotFound(); });
 
     Serial.println("Ready.");
@@ -158,8 +124,8 @@ void wifiLoop() {
     if (gSaveParams) {
         Serial.println(F("Parameters are changed,save them"));
 
-        String s = (String)gN2KSource;
-        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
+        Config.SetSource(gN2KSource[TemperaturDevice]);
+        Config.SetSourceAlert(gN2KSource[AlarmDevice]);
 
         iotWebConf.saveConfig();
         gSaveParams = false;
@@ -170,6 +136,49 @@ void wifiConnected() {
     ArduinoOTA.begin();
 }
 
+void handleData() {
+	String _response = "{";
+    _response += "\"rssi\":\"" + String(WiFi.RSSI()) + "\",";
+    Sensor* _sensor = &Sensor1;
+    uint8_t _i = 1;
+    while (_sensor != nullptr) {
+        if (_sensor->isActive()) {
+            _response += "\"sensor" + String(_i) + "\":\"" + String(_sensor->GetSensorValue(), 2) + "\"";
+        }
+        _sensor = (Sensor*)_sensor->getNext();
+
+        if (_sensor != nullptr) {
+            _response += ",";
+        }
+        _i++;
+    }
+    _response += "}";
+	server.send(200, "text/plain", _response);
+}
+
+class MyHtmlRootFormatProvider : public HtmlRootFormatProvider {
+protected:
+    virtual String getScriptInner() {
+        String _s = HtmlRootFormatProvider::getScriptInner();
+        _s.replace("{millisecond}", "5000");
+        _s += F("function updateData(jsonData) {\n");
+        _s += F("   document.getElementById('RSSIValue').innerHTML = jsonData.rssi + \"dBm\" \n");
+		Sensor* _sensor = &Sensor1;
+        uint8_t _i = 1;
+        while (_sensor != nullptr) {
+            if (_sensor->isActive()) {
+				_s += "   document.getElementById('sensor" + String(_i) + "').innerHTML = jsonData.sensor" + String(_i) + " + \"&deg;C\" \n";
+			}
+			_sensor = (Sensor*)_sensor->getNext();
+			_i++;
+		}
+
+        _s += F("}\n");
+        
+        return _s;
+    }
+};
+
 void handleRoot()
 {
     // -- Let IotWebConf test and handle captive portal requests.
@@ -179,60 +188,67 @@ void handleRoot()
         return;
     }
 
-    String page = HTML_Start_Doc;
-    page.replace("{v}", iotWebConf.getThingName());
-    page += "<style>";
-    page += ".de{background-color:#ffaaaa;} .em{font-size:0.8em;color:#bb0000;padding-bottom:0px;} .c{text-align: center;} div,input,select{padding:5px;font-size:1em;} input{width:95%;} select{width:100%} input[type=checkbox]{width:auto;scale:1.5;margin:10px;} body{text-align: center;font-family:verdana;} button{border:0;border-radius:0.3rem;background-color:#16A1E7;color:#fff;line-height:2.4rem;font-size:1.2rem;width:100%;} fieldset{border-radius:0.3rem;margin: 0px;}";
-    // page.replace("center", "left");
-    page += "</style>";
-    page += "<meta http-equiv=refresh content=15 />";
-    page += HTML_Start_Body;
-    page += "<table border=0 align=center>";
-    page += "<tr><td>";
+    MyHtmlRootFormatProvider rootFormatProvider;
 
-        page += HTML_Start_Fieldset;
-        page += HTML_Fieldset_Legend;
-        page.replace("{l}", "Temperaturs");
-            page += HTML_Start_Table;
+    String _response = "";
+    _response += rootFormatProvider.getHtmlHead(iotWebConf.getThingName());
+    _response += rootFormatProvider.getHtmlStyle();
+    _response += rootFormatProvider.getHtmlHeadEnd();
+    _response += rootFormatProvider.getHtmlScript();
 
-            for (uint8_t i = 0; i < gDeviceCount; i++) {
-                page += "<tr><td align=left>" + String(TempSourceNames[gTemperaturs[i].Source]) + ":</td><td>" + String(gTemperaturs[i].Value) + "&deg;C" + "</td></tr>";
+    _response += rootFormatProvider.getHtmlTable();
+    _response += rootFormatProvider.getHtmlTableRow() + rootFormatProvider.getHtmlTableCol();
+
+    _response += F("<fieldset align=left style=\"border: 1px solid\">\n");
+        _response += F("<table border=\"0\" align=\"center\" width=\"100%\">\n");
+        _response += F("<tr><td align=\"left\"> </td></td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr>\n");
+        _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlFieldsetEnd();
+
+    _response += rootFormatProvider.getHtmlFieldset("Temperature");
+        _response += rootFormatProvider.getHtmlTable();
+        Sensor* _sensor = &Sensor1;
+        uint8_t _i = 1;
+        while (_sensor != nullptr) {
+            if (_sensor->isActive()) {
+                _response += rootFormatProvider.getHtmlTableRowSpan(String(TempSourceNames[_sensor->GetSourceId()]),  "no data", "sensor" + String(_i));
             }
+            _sensor = (Sensor*)_sensor->getNext();
+            _i++;
+        }
+        _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlFieldsetEnd();
 
-        page += HTML_End_Table;
-        page += HTML_End_Fieldset;
+    _response += rootFormatProvider.getHtmlFieldset("Network");
+        _response += rootFormatProvider.getHtmlTable();
+        _response += rootFormatProvider.getHtmlTableRowText("MAC Address:", WiFi.macAddress());
+        _response += rootFormatProvider.getHtmlTableRowText("IP Address:", WiFi.localIP().toString().c_str());
+        _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlFieldsetEnd();
 
-        page += "<br>";
-        page += "<br>";
+    _response += rootFormatProvider.addNewLine(2);
 
-        page += HTML_Start_Table;
-        page += "<tr><td align=left>Go to <a href = 'config'>configure page</a> to change configuration.</td></tr>";
-        // page += "<tr><td align=left>Go to <a href='setruntime'>runtime modification page</a> to change runtime data.</td></tr>";
+    _response += rootFormatProvider.getHtmlTable();
+        _response += rootFormatProvider.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration.");
+        _response += rootFormatProvider.getHtmlTableRowText(rootFormatProvider.getHtmlVersion(Version));
+        _response += rootFormatProvider.getHtmlTableEnd();
 
-        page += "<tr><td><font size=1>Version: " + String(Version) + "</font></td></tr>";
-        page += HTML_End_Table;
-        page += HTML_End_Body;
+        _response += rootFormatProvider.getHtmlTableColEnd() + rootFormatProvider.getHtmlTableRowEnd();
+        _response += rootFormatProvider.getHtmlTableEnd();
+    _response += rootFormatProvider.getHtmlEnd();
 
-        page += HTML_End_Doc;
-
-
-    server.send(200, "text/html", page);
+    server.send(200, "text/html", _response);
 }
 
 void convertParams() {
-    gTemperaturs[0].Value = tN2kTempSource(atoi(TempSourceValue1));
-    gTemperaturs[1].Value = tN2kTempSource(atoi(TempSourceValue2));
-    gTemperaturs[2].Value = tN2kTempSource(atoi(TempSourceValue3));
-    gTemperaturs[3].Value = tN2kTempSource(atoi(TempSourceValue4));
 
-    if (atoi(SourceValue) == 0) {
-        Serial.println(F("Incorrect format for source id"));
-        String s = (String)gN2KSource;
-        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
-        iotWebConf.saveConfig();
-    }
+    gN2KInstance = Config.Instance();
+    gN2KSID = Config.SID();
 
-    gN2KSource = atoi(SourceValue);
+    gN2KSource[TemperaturDevice] = Config.Source();
+    gN2KSource[AlarmDevice] = Config.SourceAlert();
+
+    UpdateAlertSystem();
 }
 
 void configSaved() {

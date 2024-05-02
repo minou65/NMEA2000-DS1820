@@ -3,53 +3,55 @@
 ## Table of contents
 - [NMEA2000-DS1820 Temperatur Monitor](#nmea2000-ds1820-temperatur-monitor)
 	- [Table of contents](#table-of-contents)
-	- [Description ](#description-)
-	- [NMEA 2000 ](#nmea-2000-)
-	- [Librarys ](#librarys-)
-	- [Required hardware ](#required-hardware-)
-	- [Settings ](#settings-)
-	- [WiFi ](#wifi-)
-		- [Default Password ](#default-password-)
-		- [Default IP address ](#default-ip-address-)
-		- [OTA ](#ota-)
-		- [Configuration options ](#configuration-options-)
-		- [Blinking codes ](#blinking-codes-)
-		- [Reset ](#reset-)
+	- [Description](#description)
+	- [NMEA 2000](#nmea-2000)
+	- [Librarys](#librarys)
+	- [Required hardware](#required-hardware)
+	- [Settings](#settings)
+		- [NMEA 2000 Settings](#nmea-2000-settings)
+			- [Instance](#instance)
+			- [SID](#sid)
+		- [Sensor](#sensor)
+			- [Source](#source)
+			- [Threshold (°C)](#threshold-c)
+			- [Method](#method)
+			- [Alert Description](#alert-description)
+			- [Temporary silence time (minutes)](#temporary-silence-time-minutes)
+	- [WiFi](#wifi)
+		- [Default Password](#default-password)
+			- [Default IP address](#default-ip-address)
+		- [OTA](#ota)
+		- [Configuration options](#configuration-options)
+	- [Blinking codes](#blinking-codes)
+	- [Reset](#reset)
 
-## Description <a name="description"></a>
+## Description
+The device consists of a temperature sensor that can accommodate up to 4 DS1820 sensors. Each DS1820 sensor can be configured to measure temperature from -50°C (-58°F) up to 125°C (257°F). You can select the temperature source for each sensor (e.g., alternator, shaft seal, oil filter). An alarm threshold can be set for each sensor, triggering a predefined alarm when the temperature exceeds the threshold.
 
-This device can monitor temperaturs and send the values over a NMEA 2000 bus. The values can also be viewed via a web interface, For that the Device should be connected to a wifi AP
+**Communication via NMEA 2000:**
+The temperature values and alarms are transmitted as NMEA 2000 messages over an NMEA bus.
+The NMEA 2000 network provides power to the sensor.
 
-The following temperature sources can be selected:
+**Configuration and Monitoring:**
+The sensor’s configuration is done through a web interface. You can als monitor all temperaturs through the webinterface
 
-- Sea water temperature
-- Outside temperature
-- Inside temperature
-- Engine room temperature
-- Main cabin temperature
-- Live well temperature
-- Bait well temperature
-- Refrigeration temperature
-- Heating system temperature
-- Dew point temperature
-- Apparent wind chill temperature
-- Theoretical wind chill temperature
-- Heat index temperature
-- Freezer temperature
-- Exhaust gas temperature
-- Shaft seal temparature"
+**Firmware Updates:**
+The configuration page provides a link for convenient firmware updates.
 
-## NMEA 2000 <a name="nmea2000"></a>
-
+## NMEA 2000
 Depending on the temperature source, one of the following PNGs are sent
 
 - 130310, // Environmental Parameters - DEPRECATED
 - 130312, // Temperature - DEPRECATED
 - 130316, // Temperature, Extended Range
 
+The device is also capable of sending alerts. In this case these PGN's are used
+- 126983, // Alert
+- 126984, // Alert response
+- 126985, // Alert text
 
-## Librarys <a name="libs"></a>
 
+## Librarys
 The Software has been created using Visual Studio with the addon Visual Micro. In order to build it you als need some libraries.
 
 - prampec/IotWebConf
@@ -58,8 +60,7 @@ The Software has been created using Visual Studio with the addon Visual Micro. I
 - NMEA2000
 - NMEA200_ESP
 
-## Required hardware <a name="hardware"></a>
-
+## Required hardware
 The number of connected sensors is recognized automatically. A maximum of 4 DS1820 can be connected.
 
 The following [schema](/sch/NMEA2000-DS1820.pdf) show you, how to put all together.
@@ -71,28 +72,60 @@ Some pictures from the assabled hardware
 <img title="picture 1" src="/img/20230723_085825516_iOS.jpg">
 
 
-## Settings <a name="settings"></a>
+## Settings
+### NMEA 2000 Settings
+#### Instance
+This should be unique at least on one device. May be best to have it unique over all devices sending this PGN. Depending on the number of sensors connected, between 1 and 4 instances are used, starting with the number set here.
 
-Depending on the number of connected sensors, the source can be selected for up to 4 sensors.
+#### SID
+Sequence identifier. In most cases you can use just 255 for SID. The sequence identifier field is used to tie different PGNs data together to same sampling or calculation time.
 
-<img title="settings" src="/img/settings-temperatur.png">
+### Sensor
+Depending on the number of sensors connected, the following settings can be made for each sensor.
 
-## WiFi <a name="wifi"></a>
+#### Source
+One of the following temperature sources can be selected
+- Sea water temperature
+- Outside temperature
+- Inside temperature
+- Engine room temperature
+- Main cabin temperature
+- Live well temperature
+- Bait well temperature
+- Refrigeration temperature
+- Heating system temperature
+- Freezer temperature
+- Exhaust gas temperature
+- Shaft seal temparature
 
-### Default Password <a name="wifipassword"></a>
+#### Threshold (°C)
+Threshold in °C
 
+#### Method
+Method with which the threshold value is compared to the current value
+- equal
+- lower then
+- greater then
+
+#### Alert Description
+A description for the alarm
+
+#### Temporary silence time (minutes)
+This sensor supports the Temporary silence mode. With this parameter you can set the time how long the alert should be silent.
+
+## WiFi
+
+### Default Password
 When not connected to an AP the default password is 123456789
 
-### Default IP address <a name="wifiipaddress"></a>
-
+#### Default IP address
 When in AP mode, the default IP address is 192.168.4.1
 
-### OTA <a name="wifiota"></a>
+### OTA
 OTA is enabled, use default IP address or if connected to a AP the correct address.
 Port is the default port.
 
-### Configuration options <a name="wificonfiguration"></a>
-
+### Configuration options
 After the first boot, there are some values needs to be set up.
 These items are maked with __*__ (star) in the list below.
 
@@ -115,8 +148,7 @@ to connect to. __*__
 - __WiFi password__ - The password of the network above. Note, that
 unsecured passwords are not supported in your protection. __*__
 
-### Blinking codes <a name="wifiblinkingcodes"></a>
-
+## Blinking codes
 Prevoius chapters were mentioned blinking patterns, now here is a
 table summarize the menaning of the blink codes.
 
@@ -128,9 +160,8 @@ network around it. You can connect to the device with your smartphone
 WiFi network.
 - __Mostly off with occasional short flash__ - The device is online.
 
-### Reset <a name="wifireset"></a>
-
+## Reset
 When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 password to buld an AP. (E.g. in case of lost password)
 
-Reset pin is GPIO 36
+Reset pin is GPIO 13
