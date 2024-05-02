@@ -4,6 +4,7 @@
 - [NMEA2000-DS1820 Temperatur Monitor](#nmea2000-ds1820-temperatur-monitor)
 	- [Table of contents](#table-of-contents)
 	- [Description](#description)
+	- [Schema](#schema)
 	- [NMEA 2000](#nmea-2000)
 	- [Librarys](#librarys)
 	- [Required hardware](#required-hardware)
@@ -26,17 +27,10 @@
 	- [Reset](#reset)
 
 ## Description
-The device consists of a temperature sensor that can accommodate up to 4 DS1820 sensors. Each DS1820 sensor can be configured to measure temperature from -50°C (-58°F) up to 125°C (257°F). You can select the temperature source for each sensor (e.g., alternator, shaft seal, oil filter). An alarm threshold can be set for each sensor, triggering a predefined alarm when the temperature exceeds the threshold.
+A temperature sensor system that can accommodate up to 4 DS1820 sensors. Each sensor can be configured to measure temperature from -50°C (-58°F) up to 125°C (257°F). You can select the temperature source for each sensor (e.g., alternator, shaft seal, oil filter), and an alarm threshold can be set to trigger predefined alarms when the temperature exceeds the threshold. The system communicates via the NMEA 2000 protocol, sending temperature values and alarms as NMEA 2000 messages over an NMEA bus. Configuration is done through a web interface, and real-time values can be viewed on a website. Additionally, there's a link on the configuration page for convenient firmware updates.
 
-**Communication via NMEA 2000:**
-The temperature values and alarms are transmitted as NMEA 2000 messages over an NMEA bus.
-The NMEA 2000 network provides power to the sensor.
-
-**Configuration and Monitoring:**
-The sensor’s configuration is done through a web interface. You can als monitor all temperaturs through the webinterface
-
-**Firmware Updates:**
-The configuration page provides a link for convenient firmware updates.
+## Schema
+<img src="sch/schema.png" width="600" alt="schema">
 
 ## NMEA 2000
 Depending on the temperature source, one of the following PNGs are sent
@@ -67,9 +61,9 @@ The following [schema](/sch/NMEA2000-DS1820.pdf) show you, how to put all togeth
 
 Some pictures from the assabled hardware
 
-<img title="picture 1" src="/img/20230723_085806591_iOS.jpg">
-<img title="picture 1" src="/img/20230723_085811033_iOS.jpg">
-<img title="picture 1" src="/img/20230723_085825516_iOS.jpg">
+<img title="picture 1" src="img/20230723_085806591_iOS.jpg" width="600">
+<img title="picture 1" src="img/20230723_085811033_iOS.jpg" width="600">
+<img title="picture 1" src="img/20230723_085825516_iOS.jpg" width="600">
 
 
 ## Settings
