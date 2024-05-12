@@ -18,11 +18,11 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#include <N2kMessages.h>
 #include <NMEA2000_CAN.h>
-#include "N2kAlertTypes.h"
+#include <N2kAlertTypes.h>
+#include <N2kMessages.h>
 
-char Version[] = "1.0.0.2 (2024-04-28)"; // Manufacturer's Software version code
+char Version[] = "1.1.0.2 (2024-05-10)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23 };
 uint8_t gN2KInstance = 1;
