@@ -11,10 +11,8 @@
 
 #include <IotWebConf.h>
 #include <IotWebConfOptionalGroup.h>
-#include <IotWebConfESP32HTTPUpdateServer.h>
-#include <DNSServer.h>
 #include <N2kTimer.h>
-#include "N2kAlerts.h"
+#include <N2kAlerts.h>
 
 
 #define STRING_LEN 64
