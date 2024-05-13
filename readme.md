@@ -47,12 +47,14 @@ The device is also capable of sending alerts. In this case these PGN's are used
 
 ## Librarys
 The Software has been created using Visual Studio with the addon Visual Micro. In order to build it you als need some libraries.
-
-- prampec/IotWebConf
 - OneWire
 - DallasTemperature
 - NMEA2000
 - NMEA200_ESP
+- [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
+- [IotWebConf](https://github.com/minou65/IotWebConf)
+- [IotWebConfAsync](https://github.com/minou65/IotWebConfAsync)
+- [IotWebRoot](https://github.com/minou65/IotWebRoot)
 
 ## Required hardware
 The number of connected sensors is recognized automatically. A maximum of 4 DS1820 can be connected.
