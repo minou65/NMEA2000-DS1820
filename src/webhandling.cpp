@@ -18,7 +18,8 @@
 #include <IotWebConfAsyncClass.h>
 #include <IotWebConfAsyncUpdateServer.h>
 #include <IotWebRoot.h>
-#include <WebSerial.h>
+#include <AsyncJson.h>
+#include <ArduinoJson.h>
 #include "favicon.h"
 #include <vector>
 
@@ -157,23 +158,23 @@ void wifiConnected() {
 }
 
 void handleData(AsyncWebServerRequest* request) {
-	String _response = "{";
-    _response += "\"rssi\":\"" + String(WiFi.RSSI()) + "\",";
-    Sensor* _sensor = &Sensor1;
-    uint8_t _i = 1;
-    while (_sensor != nullptr) {
-        if (_sensor->isActive()) {
-            _response += "\"sensor" + String(_i) + "\":\"" + String(_sensor->GetSensorValue(), 2) + "\"";
-        }
-        _sensor = (Sensor*)_sensor->getNext();
+    AsyncJsonResponse* response = new AsyncJsonResponse();
+    response->addHeader("Server", "ESP Async Web Server");
+    JsonVariant& json_ = response->getRoot();
 
-        if (_sensor != nullptr) {
-            _response += ",";
-        }
-        _i++;
-    }
-    _response += "}";
-	request->send(200, "text/plain", _response);
+	json_["rssi"] = WiFi.RSSI();
+	Sensor* _sensor = &Sensor1;
+	uint8_t _i = 1;
+	while (_sensor != nullptr) {
+		if (_sensor->isActive()) {
+			json_["sensor" + String(_i)] = _sensor->GetSensorValue();
+		}
+		_sensor = (Sensor*)_sensor->getNext();
+		_i++;
+	}
+
+	response->setLength();
+	request->send(response);
 }
 
 class MyHtmlRootFormatProvider : public HtmlRootFormatProvider {
@@ -255,13 +256,6 @@ void handleRoot(AsyncWebServerRequest* request){
 
         std::string chunk_ = "";
 		size_t len_ = min(content_.length() - *pos_, maxLen);
-		//Serial.println("===============================================");
-  //      Serial.printf("content length: %i\n", content_.length());
-  //      Serial.printf("maxlen: %i\n", maxLen);
-  //      Serial.printf("pos: %i\n", *pos_);
-		//Serial.printf("len: %i\n", len_);
-		//Serial.printf("index: %i\n", index);
-
 		if (len_ > 0) {
 			chunk_ = content_.substr(*pos_, len_);
 			chunk_.copy((char*)buffer, chunk_.length());
