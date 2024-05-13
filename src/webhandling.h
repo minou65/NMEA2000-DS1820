@@ -13,6 +13,7 @@
 #include <IotWebConfOptionalGroup.h>
 #include <N2kTimer.h>
 #include <N2kAlerts.h>
+#include <WebSerial.h>
 
 
 #define STRING_LEN 64
