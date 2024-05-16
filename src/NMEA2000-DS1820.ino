@@ -18,8 +18,8 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#include <NMEA2000_CAN.h>
 #include <N2kAlertTypes.h>
+#include <NMEA2000_CAN.h>
 #include <N2kMessages.h>
 
 char Version[] = "1.1.0.2 (2024-05-10)"; // Manufacturer's Software version code
