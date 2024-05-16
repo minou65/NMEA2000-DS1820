@@ -51,6 +51,7 @@ The Software has been created using Visual Studio with the addon Visual Micro. I
 - DallasTemperature
 - NMEA2000
 - NMEA200_ESP
+- [AsyncTCP](https://github.com/dvarrel/AsyncTCP)
 - [ESPAsyncWebServer](https://github.com/me-no-dev/ESPAsyncWebServer)
 - [IotWebConf](https://github.com/minou65/IotWebConf)
 - [IotWebConfAsync](https://github.com/minou65/IotWebConfAsync)
