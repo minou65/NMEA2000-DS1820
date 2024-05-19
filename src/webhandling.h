@@ -124,7 +124,10 @@ public:
 
     iotwebconf::NumberParameter TemporarySilenceParam = iotwebconf::NumberParameter("Temporary silence time (minutes)", silenceId, silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'");
 
-    void SetSensorValue(const double v) { value = v; };
+    void SetSensorValue(const double v) { 
+        value = v; 
+		Alert.TestAlertThreshold(value);
+    };
     double GetSensorValue() { return value; };
     uint8_t GetSourceId() { return atoi(sourceValue); };
     uint8_t GetThresholdMethod() { return atoi(methodValue); };
