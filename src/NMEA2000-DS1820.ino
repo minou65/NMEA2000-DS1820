@@ -22,7 +22,7 @@
 #include <NMEA2000_CAN.h>
 #include <N2kMessages.h>
 
-char Version[] = "1.1.0.2 (2024-05-10)"; // Manufacturer's Software version code
+char Version[] = "1.1.0.3 (2024-05-18)"; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23 };
 uint8_t gN2KInstance = 1;
@@ -333,7 +333,7 @@ void loop2(void* parameter) {
     
     for (;;) {   // Endless loop
         sensors.requestTemperatures(); // Send the command to get temperatures
-        //vTaskDelay(500);
+       
 
         Sensor* _sensor = &Sensor1;
         uint8_t _index = 0;
@@ -346,6 +346,8 @@ void loop2(void* parameter) {
             _index++;
             _sensor = (Sensor*)_sensor->getNext();
         }
+
+        vTaskDelay(1000);
     }
 }
 
