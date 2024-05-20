@@ -325,7 +325,7 @@ void loop() {
 double GetTemperatur(int Index) {
     double T;
     T = sensors.getTempCByIndex(Index);
-    if (T == -127) T = 9.99;
+    //if (T == -127) T = 9.99;
     return T;
 }
 
