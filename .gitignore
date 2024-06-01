@@ -400,10 +400,7 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-.vscode/settings.json
-.vscode/settings.json
-<<<<<<< HEAD
+settings.json
 /src/NMEA2000-DS1820.ino.nodemcu-32s.bin
-=======
->>>>>>> b6b31f0e8562622b2969e82a380a8ca9722bd870
-/src/NMEA2000-DS1820.ino.nodemcu-32s.bin
+.vscode/settings.json
+src/board.txt
