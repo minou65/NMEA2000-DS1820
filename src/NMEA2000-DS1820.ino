@@ -12,9 +12,6 @@
 // #define DEBUG_Temperatur_MSG
 
 #include <Arduino.h>
-#include "common.h"
-#include "webhandling.h"
-
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
@@ -22,7 +19,11 @@
 #include <NMEA2000_CAN.h>
 #include <N2kMessages.h>
 
-char Version[] = "1.1.0.3 (2024-05-18)"; // Manufacturer's Software version code
+#include "common.h"
+#include "webhandling.h"
+#include "version.h"
+
+char Version[] = VERSION; // Manufacturer's Software version code
 
 uint8_t gN2KSource[] = { 22, 23 };
 uint8_t gN2KInstance = 1;
@@ -86,9 +87,11 @@ void CheckN2kSourceAddressChange() {
 
 void setup() {
 
-    // Init USB serial port
     Serial.begin(115200);
-    delay(10);
+    while (!Serial) {
+        delay(1);
+    }
+    Serial.printf("Firmware version:%s\n", Version);
 
     // init sensors
     sensors.begin(); 
