@@ -7,7 +7,7 @@
 	- [Schema](#schema)
 	- [NMEA 2000](#nmea-2000)
 	- [Librarys](#librarys)
-	- [Required hardware](#required-hardware)
+	- [Part list](#part-list)
 	- [Settings](#settings)
 		- [NMEA 2000 Settings](#nmea-2000-settings)
 			- [Instance](#instance)
@@ -60,12 +60,19 @@ The Software has been created using Visual Studio with the addon Visual Micro. I
 - [IotWebConfAsync](https://github.com/minou65/IotWebConfAsync)
 - [IotWebRoot](https://github.com/minou65/IotWebRoot)
 
-## Required hardware
-The number of connected sensors is recognized automatically. A maximum of 4 DS1820 can be connected.
+## Part list
+| Part | Value | Supplier |
+| --- | --- | --- |
+| D1 | 1N4001 | Reichelt |
+| ESP1 | ESP32DEVKITV1 | [ebay](https://www.ebay.ch/itm/204191675506?var=504772734176) |
+| IC1 | R-78E05-1.0 | Reichelt |
+| IC2 | INA226 | [ebay](https://www.ebay.ch/itm/314750066199) |
+| IC3 | MCP2562 | Reichelt oder [ebay](https://www.ebay.ch/itm/364610349378) |
+| R1 | 4.7k | Reichelt |
+| X1 | 2 x AKL 057-02 | Reichelt |
+| X2 - X4 | PSS 254/3G | Reichelt |
 
-The following [schema](/sch/NMEA2000-DS1820.pdf) show you, how to put all together.
-
-Some pictures from the assabled hardware
+Some pictures from the assambled hardware
 
 <img title="picture 1" src="img/20230723_085806591_iOS.jpg" width="600">
 <img title="picture 1" src="img/20230723_085811033_iOS.jpg" width="600">
