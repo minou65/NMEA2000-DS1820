@@ -14,6 +14,7 @@
 #include <Arduino.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <esp_task_wdt.h>
 
 #include <N2kAlertTypes.h>
 #include <NMEA2000_CAN.h>
@@ -22,8 +23,11 @@
 #include "common.h"
 #include "webhandling.h"
 #include "version.h"
+#include "neotimer.h"
 
 char Version[] = VERSION; // Manufacturer's Software version code
+
+#define WDT_TIMEOUT 5
 
 uint8_t gN2KSource[] = { 22, 23 };
 uint8_t gN2KInstance = 1;
@@ -40,6 +44,7 @@ TaskHandle_t TaskHandle;
 
 // Pass OneWire reference to Dallas Temperature
 DallasTemperature sensors(&oneWire);
+Neotimer WDtimer = Neotimer((WDT_TIMEOUT + 1) * 1000);
 
 int8_t gDeviceCount = 1;
 
@@ -203,6 +208,11 @@ void setup() {
 
     InitAlertsystem();
 
+    esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
+    esp_task_wdt_add(NULL); //add current thread to WDT watch
+
+    WDtimer.start();
+
 }
 
 void InitDeviceId() {
@@ -321,6 +331,10 @@ void loop() {
     // Dummy to empty input buffer to avoid board to stuck with e.g. NMEA Reader
     if (Serial.available()) {
         Serial.read();
+    }
+
+    if (WDtimer.repeat()) {
+        esp_task_wdt_reset();
     }
 
 }
