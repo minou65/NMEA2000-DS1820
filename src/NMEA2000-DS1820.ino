@@ -25,7 +25,7 @@
 #include "version.h"
 #include "neotimer.h"
 
-char Version[] = VERSION; // Manufacturer's Software version code
+char Version[] = VERSION_STR; // Manufacturer's Software version code
 
 #define WDT_TIMEOUT 5
 
@@ -208,10 +208,10 @@ void setup() {
 
     InitAlertsystem();
 
-    esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
-    esp_task_wdt_add(NULL); //add current thread to WDT watch
+    //esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
+    //esp_task_wdt_add(NULL); //add current thread to WDT watch
 
-    WDtimer.start();
+    //WDtimer.start();
 
 }
 
@@ -334,7 +334,7 @@ void loop() {
     }
 
     if (WDtimer.repeat()) {
-        esp_task_wdt_reset();
+        //esp_task_wdt_reset();
     }
 
 }
@@ -347,6 +347,9 @@ double GetTemperatur(int Index) {
 }
 
 void loop2(void* parameter) {
+    Neotimer _WDtimer = Neotimer((WDT_TIMEOUT + 1) * 1000);
+    // esp_task_wdt_add(NULL); //add current thread to WDT watch (Core 0)
+
     
     for (;;) {   // Endless loop
         sensors.requestTemperatures(); // Send the command to get temperatures
@@ -364,6 +367,9 @@ void loop2(void* parameter) {
             _sensor = (Sensor*)_sensor->getNext();
         }
 
+        if (_WDtimer.repeat()) {
+            //esp_task_wdt_reset();
+        }
         vTaskDelay(1000);
     }
 }
