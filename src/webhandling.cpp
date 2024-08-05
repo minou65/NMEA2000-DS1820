@@ -167,7 +167,7 @@ void handleData(AsyncWebServerRequest* request) {
 	uint8_t _i = 1;
 	while (_sensor != nullptr) {
 		if (_sensor->isActive()) {
-			json_["sensor" + String(_i)] = _sensor->GetSensorValue();
+            json_["sensor" + String(_i)] = String(_sensor->GetSensorValue(), 2);
 		}
 		_sensor = (Sensor*)_sensor->getNext();
 		_i++;
