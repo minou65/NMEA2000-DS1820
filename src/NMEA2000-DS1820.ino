@@ -44,7 +44,7 @@ TaskHandle_t TaskHandle;
 
 // Pass OneWire reference to Dallas Temperature
 DallasTemperature sensors(&oneWire);
-Neotimer WDtimer = Neotimer((WDT_TIMEOUT + 1) * 1000);
+Neotimer WDtimer = Neotimer((WDT_TIMEOUT - 2) * 1000);
 
 int8_t gDeviceCount = 1;
 
@@ -208,10 +208,11 @@ void setup() {
 
     InitAlertsystem();
 
-    //esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
-    //esp_task_wdt_add(NULL); //add current thread to WDT watch
+    esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
+    WDtimer.start();
 
-    //WDtimer.start();
+    esp_task_wdt_add(NULL); //add current thread to WDT watch
+
 
 }
 
@@ -334,7 +335,7 @@ void loop() {
     }
 
     if (WDtimer.repeat()) {
-        //esp_task_wdt_reset();
+        esp_task_wdt_reset();
     }
 
 }
@@ -347,8 +348,7 @@ double GetTemperatur(int Index) {
 }
 
 void loop2(void* parameter) {
-    Neotimer _WDtimer = Neotimer((WDT_TIMEOUT + 1) * 1000);
-    // esp_task_wdt_add(NULL); //add current thread to WDT watch (Core 0)
+    esp_task_wdt_add(NULL); //add current thread to WDT watch (Core 0)
 
     
     for (;;) {   // Endless loop
@@ -367,11 +367,8 @@ void loop2(void* parameter) {
             _sensor = (Sensor*)_sensor->getNext();
         }
 
-        if (_WDtimer.repeat()) {
-            //esp_task_wdt_reset();
-        }
+        esp_task_wdt_reset();
+
         vTaskDelay(1000);
     }
 }
-
-
