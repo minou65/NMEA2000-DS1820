@@ -252,14 +252,15 @@ void InitAlertsystem() {
 }
 
 void SendAlarm() {
-    tN2kMsg N2kMsg;
 
     Sensor* _sensor = &Sensor1;
     while (_sensor != nullptr) {
         if (_sensor->isActive() && _sensor->AlarmScheduler.IsTime()) {
             _sensor->AlarmScheduler.UpdateNextTime();
-            _sensor->Alert.SetN2kAlert(N2kMsg);
-            NMEA2000.SendMsg(N2kMsg, AlarmDevice);
+
+            tN2kMsg _N2kMsg;
+            _sensor->Alert.SetN2kAlert(_N2kMsg);
+            NMEA2000.SendMsg(_N2kMsg, AlarmDevice);
         }
         _sensor = (Sensor*)_sensor->getNext();
     }
@@ -273,8 +274,9 @@ void SendAlarmText() {
         if (_sensor->isActive() && _sensor->TextAlarmScheduler.IsTime()) {
             _sensor->TextAlarmScheduler.UpdateNextTime();
 
-            _sensor->Alert.SetN2kAlertText(N2kMsg);
-            NMEA2000.SendMsg(N2kMsg, AlarmDevice);
+            tN2kMsg _N2kMsg;
+            _sensor->Alert.SetN2kAlertText(_N2kMsg);
+            NMEA2000.SendMsg(_N2kMsg, AlarmDevice);
         }
         _sensor = (Sensor*)_sensor->getNext();
     }
@@ -322,8 +324,8 @@ void loop() {
     wifiLoop();
 
     SendTemperatur(gN2KSID, gN2KInstance);
-    SendAlarm();
-    SendAlarmText();
+    //SendAlarm();
+    //SendAlarmText();
 
     NMEA2000.ParseMessages();
 
