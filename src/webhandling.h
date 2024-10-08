@@ -19,19 +19,19 @@
 #define STRING_LEN 64
 #define NUMBER_LEN 5
 
-static char ThresholdMethodValues[][STRING_LEN] = {
+static char ThresholdMethodValues[][STRING_LEN] PROGMEM = {
     "0",
     "1",
     "2"
 };
 
-static char ThresholdMethodNames[][STRING_LEN] = {
+static char ThresholdMethodNames[][STRING_LEN] PROGMEM = {
     "equal",
     "lower than",
     "greater than"
 };
 
-static char TempSourceValues[][STRING_LEN] = {
+static char TempSourceValues[][STRING_LEN] PROGMEM = {
     "0",
     "1",
     "2",
@@ -46,7 +46,7 @@ static char TempSourceValues[][STRING_LEN] = {
     "15"
 };
 
-static char TempSourceNames[][STRING_LEN] = {
+static char TempSourceNames[][STRING_LEN] PROGMEM = {
     "Sea water temperature",
     "Outside temperature",
     "Inside temperature",
@@ -62,7 +62,7 @@ static char TempSourceNames[][STRING_LEN] = {
 };
 
 // -- Initial password to connect to the Thing, when it creates an own Access Point.
-const char wifiInitialApPassword[] = "123456789";
+const char wifiInitialApPassword[] PROGMEM = "123456789";
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
 #define CONFIG_VERSION "A9"
