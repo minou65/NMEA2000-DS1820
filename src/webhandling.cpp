@@ -18,8 +18,6 @@
 #include <IotWebConfAsyncClass.h>
 #include <IotWebConfAsyncUpdateServer.h>
 #include <IotWebRoot.h>
-#include <AsyncJson.h>
-#include <ArduinoJson.h>
 #include "favicon.h"
 #include <vector>
 
@@ -158,23 +156,19 @@ void wifiConnected() {
 }
 
 void handleData(AsyncWebServerRequest* request) {
-    AsyncJsonResponse* response = new AsyncJsonResponse();
-    response->addHeader("Server", "ESP Async Web Server");
-    JsonVariant& json_ = response->getRoot();
-
-	json_["rssi"] = WiFi.RSSI();
+	String json_ = "{";
+	json_ += "\"rssi\":" + String(WiFi.RSSI());
 	Sensor* _sensor = &Sensor1;
 	uint8_t _i = 1;
 	while (_sensor != nullptr) {
 		if (_sensor->isActive()) {
-            json_["sensor" + String(_i)] = String(_sensor->GetSensorValue(), 2);
+			json_ += ",\"sensor" + String(_i) + "\":" + String(_sensor->GetSensorValue(), 2);
 		}
 		_sensor = (Sensor*)_sensor->getNext();
 		_i++;
 	}
-
-	response->setLength();
-	request->send(response);
+	json_ += "}";
+	request->send(200, "application/json", json_);
 }
 
 class MyHtmlRootFormatProvider : public HtmlRootFormatProvider {
