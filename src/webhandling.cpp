@@ -15,6 +15,7 @@
 #include "common.h"
 #include "webhandling.h"
 #include "favicon.h"
+#include "neotimer.h"
 
 #include <DNSServer.h>
 #include <IotWebConfAsyncClass.h>
@@ -56,14 +57,20 @@ void wifiConnected();
 
 bool gParamsChanged = true;
 bool gSaveParams = false;
+uint8_t APModeOfflineTime = 0;
 
 DNSServer dnsServer;
 AsyncWebServer server(80);
 AsyncWebServerWrapper asyncWebServerWrapper(&server);
 AsyncUpdateServer AsyncUpdater;
+Neotimer APModeTimer = Neotimer();
 
 
 IotWebConf iotWebConf(thingName, &dnsServer, &asyncWebServerWrapper, wifiInitialApPassword, CONFIG_VERSION);
+
+char APModeOfflineValue[STRING_LEN];
+iotwebconf::NumberParameter APModeOfflineParam = iotwebconf::NumberParameter("AP offline mode after (minutes)", "APModeOffline", APModeOfflineValue, NUMBER_LEN, "0", "0..30", "min='0' max='30', step='1'");
+
 
 void wifiInit() {
     Serial.begin(115200);
@@ -97,6 +104,8 @@ void wifiInit() {
         iotWebConf.addParameterGroup(&Sensor4);
         Sensor4.setActive(true);
     }
+
+    iotWebConf.addSystemParameter(&APModeOfflineParam);
 
     iotWebConf.setupUpdateServer(
         [](const char* updatePath) { AsyncUpdater.setup(&server, updatePath); },
@@ -135,6 +144,10 @@ void wifiInit() {
 
     WebSerial.begin(&server, "/webserial");
 
+    if (APModeOfflineTime > 0) {
+        APModeTimer.start(APModeOfflineTime * 60 * 1000);
+    }
+
     Serial.println("Ready.");
 }
 
@@ -151,6 +164,12 @@ void wifiLoop() {
 
         iotWebConf.saveConfig();
         gSaveParams = false;
+    }
+
+    if (APModeTimer.done()) {
+        Serial.println(F("AP mode offline time reached"));
+        iotWebConf.goOffLine();
+        APModeTimer.stop();
     }
 }
 
@@ -276,6 +295,8 @@ void convertParams() {
 
     gN2KSource[TemperaturDevice] = Config.Source();
     gN2KSource[AlarmDevice] = Config.SourceAlert();
+
+    APModeOfflineTime = atoi(APModeOfflineValue);
 
     UpdateAlertSystem();
 }
