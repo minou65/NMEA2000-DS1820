@@ -121,15 +121,17 @@ void setup() {
         0 /* Core where the task should run */
     );
 
+    // Reserve enough buffer for sending all messages. This does not work on small memory devices like Uno or Mega
+    NMEA2000.SetN2kCANMsgBufSize(10);
+    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
+    NMEA2000.SetN2kCANSendFrameBufSize(250);
+
     // Enable multi device support for 3 devices
     NMEA2000.SetDeviceCount(2);
 
     NMEA2000.SetOnOpen(OnN2kOpen);
 
-    // Reserve enough buffer for sending all messages. This does not work on small memory devices like Uno or Mega
-    NMEA2000.SetN2kCANMsgBufSize(8);
-    NMEA2000.SetN2kCANReceiveFrameBufSize(150);
-    NMEA2000.SetN2kCANSendFrameBufSize(150);
+
 
     // Set Product information for Temperatur Device
     NMEA2000.SetProductInformation(
@@ -234,98 +236,109 @@ void UpdateAlertSystem() {
 }
 
 void InitAlertsystem() {
-    Sensor* _sensor = &Sensor1;
-    uint8_t _index = 0;
-    while (_sensor != nullptr) {
-        if (_sensor->isActive()) {
+    Sensor* sensor_ = &Sensor1;
+    uint8_t index_ = 0;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
 
-            _sensor->Alert.SetAlertSystem(_index, gN2KInstance + _index, NMEA2000.GetN2kSource(AlarmDevice), N2kts_AlertLanguageEnglishUS, _sensor->descriptionValue, TempSourceNames[_sensor->GetSourceId()]);
+            sensor_->Alert.SetAlertSystem(index_, gN2KInstance + index_, NMEA2000.GetN2kSource(AlarmDevice), N2kts_AlertLanguageEnglishUS, sensor_->descriptionValue, TempSourceNames[sensor_->GetSourceId()]);
 
-            _sensor->Alert.SetAlertDataSource(gN2KInstance + _index, 0, NMEA2000.GetN2kSource(TemperaturDevice));
-            _sensor->Alert.SetAlertThreshold(t2kNAlertThresholdMethod(_sensor->GetThresholdMethod()), 0, _sensor->GetThresholdValue());
+            sensor_->Alert.SetAlertDataSource(gN2KInstance + index_, 0, NMEA2000.GetN2kSource(TemperaturDevice));
+            sensor_->Alert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
 
-            _sensor->Alert.SetTemporarySilenceTime(_sensor->GetTemporarySilenceTime() * 60);
+            sensor_->Alert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
         }
-        _index++;
-        _sensor = (Sensor*)_sensor->getNext();
+        index_++;
+        sensor_ = (Sensor*)sensor_->getNext();
     }
 }
 
 void SendAlarm() {
+    Sensor* sensor_ = &Sensor1;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive() && sensor_->AlarmScheduler.IsTime()) {
+            sensor_->AlarmScheduler.UpdateNextTime();
 
-    Sensor* _sensor = &Sensor1;
-    while (_sensor != nullptr) {
-        if (_sensor->isActive() && _sensor->AlarmScheduler.IsTime()) {
-            _sensor->AlarmScheduler.UpdateNextTime();
-
-            tN2kMsg _N2kMsg;
-            _sensor->Alert.SetN2kAlert(_N2kMsg);
-            NMEA2000.SendMsg(_N2kMsg, AlarmDevice);
+            tN2kMsg N2kMsg_;
+            sensor_->Alert.SetN2kAlert(N2kMsg_);
+            NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
         }
-        _sensor = (Sensor*)_sensor->getNext();
+        sensor_ = (Sensor*)sensor_->getNext();
     }
 }
 
 void SendAlarmText() {
-    tN2kMsg N2kMsg;
 
-    Sensor* _sensor = &Sensor1;
-    while (_sensor != nullptr) {
-        if (_sensor->isActive() && _sensor->TextAlarmScheduler.IsTime()) {
-            _sensor->TextAlarmScheduler.UpdateNextTime();
+    Sensor* sensor_ = &Sensor1;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive() && sensor_->TextAlarmScheduler.IsTime()) {
 
-            tN2kMsg _N2kMsg;
-            _sensor->Alert.SetN2kAlertText(_N2kMsg);
-            NMEA2000.SendMsg(_N2kMsg, AlarmDevice);
+            unsigned long currentMillis_ = millis();
+            unsigned long seconds_ = currentMillis_ / 1000;
+            unsigned long minutes_ = seconds_ / 60;
+            unsigned long hours_ = minutes_ / 60;
+            seconds_ = seconds_ % 60;
+            minutes_ = minutes_ % 60;
+
+            String timestamp_ = String(hours_) + ":" + (minutes_ < 10 ? "0" : "") + String(minutes_) + ":" + (seconds_ < 10 ? "0" : "") + String(seconds_);
+            WebSerial.printf("%s: SendAlarmText\n", timestamp_.c_str());
+
+            sensor_->TextAlarmScheduler.UpdateNextTime();
+
+            tN2kMsg N2kMsg_;
+            sensor_->Alert.SetN2kAlertText(N2kMsg_);
+            NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
         }
-        _sensor = (Sensor*)_sensor->getNext();
+        sensor_ = (Sensor*)sensor_->getNext();
     }
 }
 
-void SendTemperatur(uint8_t SID_, uint8_t TempInstance_) {
-    tN2kMsg N2kMsg;
 
-    Sensor* _sensor = &Sensor1;
-    uint8_t _index = TempInstance_;
+void SendTemperatur(uint8_t SID, uint8_t TempInstance) {
+    tN2kMsg N2kMsg_;
 
-    while (_sensor != nullptr) {
-        if (_sensor->isActive() && _sensor->SchedulerTemperatur.IsTime()) {
-            _sensor->SchedulerTemperatur.UpdateNextTime();
+    Sensor* sensor_ = &Sensor1;
+    uint8_t index_ = TempInstance;
 
-            tN2kTempSource _TempSource = tN2kTempSource(_sensor->GetSourceId());
-            double _TempValue = CToKelvin(_sensor->GetSensorValue());
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive() && sensor_->SchedulerTemperatur.IsTime()) {
+            sensor_->SchedulerTemperatur.UpdateNextTime();
 
-            SetN2kPGN130312(N2kMsg, SID_, _index, _TempSource, _TempValue, N2kDoubleNA);
-            NMEA2000.SendMsg(N2kMsg, TemperaturDevice);
+            tN2kTempSource TempSource_ = tN2kTempSource(sensor_->GetSourceId());
+            double TempValue_ = CToKelvin(sensor_->GetSensorValue());
 
-            SetN2kPGN130316(N2kMsg, SID_, _index, _TempSource, _TempValue, N2kDoubleNA);
-            NMEA2000.SendMsg(N2kMsg, TemperaturDevice);
+            SetN2kPGN130312(N2kMsg_, SID, index_, TempSource_, TempValue_, N2kDoubleNA);
+            NMEA2000.SendMsg(N2kMsg_, TemperaturDevice);
 
-            if (_TempSource == N2kts_OutsideTemperature) {
-                SetN2kPGN130310(N2kMsg, SID_, N2kDoubleNA, _TempValue);
-                NMEA2000.SendMsg(N2kMsg, TemperaturDevice);
+            SetN2kPGN130316(N2kMsg_, SID, index_, TempSource_, TempValue_, N2kDoubleNA);
+            NMEA2000.SendMsg(N2kMsg_, TemperaturDevice);
+
+            if (TempSource_ == N2kts_OutsideTemperature) {
+                SetN2kPGN130310(N2kMsg_, SID, N2kDoubleNA, TempValue_);
+                NMEA2000.SendMsg(N2kMsg_, TemperaturDevice);
             }
 
-            if (_TempSource == N2kts_SeaTemperature) {
-                SetN2kPGN130310(N2kMsg, SID_, _TempValue, N2kDoubleNA);
-                NMEA2000.SendMsg(N2kMsg, TemperaturDevice);
+            if (TempSource_ == N2kts_SeaTemperature) {
+                SetN2kPGN130310(N2kMsg_, SID, TempValue_, N2kDoubleNA);
+                NMEA2000.SendMsg(N2kMsg_, TemperaturDevice);
             }
 
         }
 
-        _index++;
-        _sensor = (Sensor*)_sensor->getNext();
+        index_++;
+        sensor_ = (Sensor*)sensor_->getNext();
     }
 
 }
+
 
 
 void loop() {
     wifiLoop();
 
     SendTemperatur(gN2KSID, gN2KInstance);
-    //SendAlarm();
-    //SendAlarmText();
+    SendAlarm();
+    SendAlarmText();
 
     NMEA2000.ParseMessages();
 
