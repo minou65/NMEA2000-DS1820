@@ -14,11 +14,12 @@
 
 #include "common.h"
 #include "webhandling.h"
+#include "favicon.h"
+
 #include <DNSServer.h>
 #include <IotWebConfAsyncClass.h>
 #include <IotWebConfAsyncUpdateServer.h>
 #include <IotWebRoot.h>
-#include "favicon.h"
 #include <vector>
 
 extern void UpdateAlertSystem();
@@ -131,6 +132,8 @@ void wifiInit() {
         iotWebConf.handleNotFound(&asyncWebRequestWrapper);
         }
     );
+
+    WebSerial.begin(&server, "/webserial");
 
     Serial.println("Ready.");
 }
