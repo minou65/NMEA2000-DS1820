@@ -15,6 +15,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <esp_task_wdt.h>
+#include <esp_mac.h>
 
 #include <N2kAlertTypes.h>
 #include <NMEA2000_CAN.h>
@@ -26,8 +27,6 @@
 #include "neotimer.h"
 
 char Version[] = VERSION_STR; // Manufacturer's Software version code
-
-#define WDT_TIMEOUT 5
 
 uint8_t gN2KSource[] = { 22, 23 };
 uint8_t gN2KInstance = 1;
@@ -42,9 +41,14 @@ OneWire oneWire(ONE_WIRE_BUS);
 // Task handle for OneWire read (Core 0 on ESP32)
 TaskHandle_t TaskHandle;
 
+// Configuration for the Watchdog Timer
+esp_task_wdt_config_t wdt_config = {
+    .timeout_ms = 5000, // Timeout in milliseconds
+    .trigger_panic = true // Trigger panic if the Watchdog Timer expires
+};
+
 // Pass OneWire reference to Dallas Temperature
 DallasTemperature sensors(&oneWire);
-Neotimer WDtimer = Neotimer((WDT_TIMEOUT - 2) * 1000);
 
 int8_t gDeviceCount = 1;
 
@@ -210,12 +214,9 @@ void setup() {
 
     InitAlertsystem();
 
-    esp_task_wdt_init(WDT_TIMEOUT, true); //enable panic so ESP32 restarts
-    WDtimer.start();
-
+    // Initialize the Watchdog Timer
+    esp_task_wdt_init(&wdt_config);
     esp_task_wdt_add(NULL); //add current thread to WDT watch
-
-
 }
 
 void InitDeviceId() {
@@ -349,10 +350,7 @@ void loop() {
         Serial.read();
     }
 
-    if (WDtimer.repeat()) {
-        esp_task_wdt_reset();
-    }
-
+    esp_task_wdt_reset();
 }
 
 double GetTemperatur(int Index) {
