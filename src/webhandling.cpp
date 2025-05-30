@@ -308,6 +308,8 @@ void convertParams() {
     APModeOfflineTime = atoi(APModeOfflineValue);
 
     UpdateAlertSystem();
+
+    ArduinoOTA.setHostname(iotWebConf.getThingName());
 }
 
 void configSaved() {
