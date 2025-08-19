@@ -19,19 +19,19 @@
 #define STRING_LEN 64
 #define NUMBER_LEN 5
 
-static char ThresholdMethodValues[][STRING_LEN] PROGMEM = {
+static char ThresholdMethodValues[][3] PROGMEM = {
     "0",
     "1",
     "2"
 };
 
-static char ThresholdMethodNames[][STRING_LEN] PROGMEM = {
+static char ThresholdMethodNames[][14] PROGMEM = {
     "equal",
     "lower than",
     "greater than"
 };
 
-static char TempSourceValues[][STRING_LEN] PROGMEM = {
+static char TempSourceValues[][3] PROGMEM = {
     "0",
     "1",
     "2",
@@ -46,7 +46,7 @@ static char TempSourceValues[][STRING_LEN] PROGMEM = {
     "15"
 };
 
-static char TempSourceNames[][STRING_LEN] PROGMEM = {
+static char TempSourceNames[][27] PROGMEM = {
     "Sea water temperature",
     "Outside temperature",
     "Inside temperature",
@@ -105,6 +105,8 @@ public:
         this->addItem(&this->TemporarySilenceParam);
 
         value = 9.99;
+
+
     }
 
     char sourceValue[STRING_LEN];
@@ -112,22 +114,47 @@ public:
     char methodValue[STRING_LEN];
     char descriptionValue[STRING_LEN];
     char silenceValue[STRING_LEN];
-    iotwebconf::SelectParameter SourceParam = iotwebconf::SelectParameter("Source", sourceId, sourceValue, STRING_LEN, 
-        (char*)TempSourceValues, (char*)TempSourceNames, sizeof(TempSourceValues) / STRING_LEN, STRING_LEN, "1");
+    iotwebconf::SelectParameter SourceParam = iotwebconf::SelectParameter(
+        "Source",
+        sourceId,
+        sourceValue,
+        sizeof(TempSourceNames[0]),
+        (char*)TempSourceValues,
+        (char*)TempSourceNames,
+        sizeof(TempSourceValues) / sizeof(TempSourceValues[0]),
+        sizeof(TempSourceNames[0]),
+        "1"
+    );
 
     iotwebconf::NumberParameter ThresholdParam = iotwebconf::NumberParameter("Threshold (&deg;C)", thresholdId, thresholdValue, NUMBER_LEN, "0", "0..200", "min='0' max='200' step='1'");
 
-    iotwebconf::SelectParameter MethodParam = iotwebconf::SelectParameter("Method", methodId, methodValue, STRING_LEN,
-        (char*)ThresholdMethodValues, (char*)ThresholdMethodNames, sizeof(ThresholdMethodValues) / STRING_LEN, STRING_LEN, "2");
+    iotwebconf::SelectParameter MethodParam = iotwebconf::SelectParameter(
+        "Method",
+        methodId,
+        methodValue,
+        sizeof(ThresholdMethodNames[0]),
+        (char*)ThresholdMethodValues,
+        (char*)ThresholdMethodNames,
+        sizeof(ThresholdMethodValues) / sizeof(ThresholdMethodValues[0]),
+        sizeof(ThresholdMethodNames[0]),
+        "2"
+    );
 
     iotwebconf::TextParameter DescriptionParam = iotwebconf::TextParameter("Alert Description", descriptionId, descriptionValue, STRING_LEN, "Alert");
 
     iotwebconf::NumberParameter TemporarySilenceParam = iotwebconf::NumberParameter("Temporary silence time (minutes)", silenceId, silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'");
 
-    void SetSensorValue(const double v) { 
-        value = v; 
-		Alert.TestAlertThreshold(value);
-    };
+    void SetSensorValue(const double v) {
+        value = v;
+        if (v == -127.0) {
+            FaultAlert.SetAlertExceeded(); // Activate fault alert (sensor defective or not connected)
+        }
+        else {
+            FaultAlert.ResetAlert();       // Reset fault alert if sensor is OK again
+            Alert.TestAlertThreshold(value); // Normal threshold check
+        }
+    }
+
     double GetSensorValue() { return value; };
     uint8_t GetSourceId() { return atoi(sourceValue); };
     uint8_t GetThresholdMethod() { return atoi(methodValue); };
@@ -138,7 +165,29 @@ public:
     tN2kSyncScheduler TextAlarmScheduler = tN2kSyncScheduler(false, 10000, 2000);
     tN2kSyncScheduler SchedulerTemperatur = tN2kSyncScheduler(false, 2000, 500);
 
-    tN2kAlert Alert = tN2kAlert(N2kts_AlertTypeCaution, N2kts_AlertCategoryTechnical, 100, N2kts_AlertTriggerAuto, 100, N2kts_AlertYes, N2kts_AlertYes);
+    tN2kAlert Alert = tN2kAlert(
+        N2kts_AlertTypeCaution,         // Type: Caution
+        N2kts_AlertCategoryTechnical,   // Category: Technical
+        100,                            // Unique Alert ID (must be different from other IDs)
+        N2kts_AlertTriggerAuto,         // Automatic trigger
+        100,                            // Priority
+        N2kts_AlertYes,                 // Temporary silence supported
+        N2kts_AlertYes,                 // Acknowledge supported
+        N2kts_AlertNo,                  // Escalation not supported
+        1                               // Occurrence threshold
+    );
+
+    tN2kAlert FaultAlert = tN2kAlert(
+        N2kts_AlertTypeAlarm,           // Type: Alarm
+        N2kts_AlertCategoryTechnical,   // Category: Technical
+        101,                            // Unique Alert ID (must be different from other IDs)
+        N2kts_AlertTriggerAuto,         // Automatic trigger
+        100,                            // Priority
+        N2kts_AlertYes,                 // Temporary silence supported
+        N2kts_AlertYes,                 // Acknowledge supported
+        N2kts_AlertNo,                  // Escalation not supported
+        10                              // Occurrence threshold
+    );
 
 private:
     char sourceId[STRING_LEN];
