@@ -295,11 +295,11 @@ void handleRoot(AsyncWebServerRequest* request){
 
 void convertParams() {
 
-    gN2KInstance = Config.Instance();
-    gN2KSID = Config.SID();
+    gN2KInstance = Config.GetInstance();
+    gN2KSID = Config.GetSID();
 
-    gN2KSource[TemperaturDevice] = Config.Source();
-    gN2KSource[AlarmDevice] = Config.SourceAlert();
+    gN2KSource[TemperaturDevice] = Config.GetSource();
+    gN2KSource[AlarmDevice] = Config.GetSourceAlert();
 
     APModeOfflineTime = atoi(APModeOfflineValue);
 
