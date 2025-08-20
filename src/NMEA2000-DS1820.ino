@@ -75,8 +75,8 @@ void OnN2kOpen() {
     while (_sensor != nullptr) {
         if (_sensor->isActive()) {
             _sensor->AlarmScheduler.UpdateNextTime();
-            _sensor->TextAlarmScheduler.UpdateNextTime();
-            _sensor->SchedulerTemperatur.UpdateNextTime();
+            _sensor->AlarmTextScheduler.UpdateNextTime();
+            _sensor->TemperatureScheduler.UpdateNextTime();
         }
         _sensor = (Sensor*)_sensor->getNext();
     }
@@ -249,18 +249,17 @@ void InitAlertsystem() {
                 gN2KInstance + index_,
                 NMEA2000.GetN2kSource(AlarmDevice),
                 N2kts_AlertLanguageEnglishUS,
-                sensor_->descriptionValue,
+                const_cast<char*>(sensor_->GetDescriptionValue()),
                 TempSourceNames[sensor_->GetSourceId()]
             );
 
-            // FaultAlert initialisieren (englisch)
             sensor_->FaultAlert.SetAlertSystem(
                 index_,
                 gN2KInstance + index_,
                 NMEA2000.GetN2kSource(AlarmDevice),
                 N2kts_AlertLanguageEnglishUS,
                 (char*)"DS1820 faulty or not connected",
-                (char*)"Temperature sensor"
+                TempSourceNames[sensor_->GetSourceId()]
             );
 
 
@@ -298,19 +297,9 @@ void SendAlarm() {
 void SendAlarmText() {
     Sensor* sensor_ = &Sensor1;
     while (sensor_ != nullptr) {
-        if (sensor_->isActive() && sensor_->TextAlarmScheduler.IsTime()) {
+        if (sensor_->isActive() && sensor_->AlarmTextScheduler.IsTime()) {
 
-            unsigned long currentMillis_ = millis();
-            unsigned long seconds_ = currentMillis_ / 1000;
-            unsigned long minutes_ = seconds_ / 60;
-            unsigned long hours_ = minutes_ / 60;
-            seconds_ = seconds_ % 60;
-            minutes_ = minutes_ % 60;
-
-            String timestamp_ = String(hours_) + ":" + (minutes_ < 10 ? "0" : "") + String(minutes_) + ":" + (seconds_ < 10 ? "0" : "") + String(seconds_);
-            //WebSerial.printf("%s: Alert is active, send AlertText\n", timestamp_.c_str());
-
-            sensor_->TextAlarmScheduler.UpdateNextTime();
+            sensor_->AlarmTextScheduler.UpdateNextTime();
 
             tN2kMsg N2kMsg_;
 
@@ -333,8 +322,8 @@ void SendTemperatur(uint8_t SID, uint8_t TempInstance) {
     uint8_t index_ = TempInstance;
 
     while (sensor_ != nullptr) {
-        if (sensor_->isActive() && sensor_->SchedulerTemperatur.IsTime()) {
-            sensor_->SchedulerTemperatur.UpdateNextTime();
+        if (sensor_->isActive() && sensor_->TemperatureScheduler.IsTime()) {
+            sensor_->TemperatureScheduler.UpdateNextTime();
 
             tN2kTempSource TempSource_ = tN2kTempSource(sensor_->GetSourceId());
             double TempValue_ = CToKelvin(sensor_->GetSensorValue());
