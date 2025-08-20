@@ -11,6 +11,8 @@
 // #define DEBUG_NMEA_Actisense // Uncomment this, so you can test code without CAN bus chips on Arduino Mega
 // #define DEBUG_Temperatur_MSG
 
+#include "common.h"
+
 #include <Arduino.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -21,7 +23,7 @@
 #include <NMEA2000_CAN.h>
 #include <N2kMessages.h>
 
-#include "common.h"
+
 #include "webhandling.h"
 #include "version.h"
 #include "neotimer.h"
@@ -242,12 +244,33 @@ void InitAlertsystem() {
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
 
-            sensor_->Alert.SetAlertSystem(index_, gN2KInstance + index_, NMEA2000.GetN2kSource(AlarmDevice), N2kts_AlertLanguageEnglishUS, sensor_->descriptionValue, TempSourceNames[sensor_->GetSourceId()]);
+            sensor_->Alert.SetAlertSystem(
+                index_,
+                gN2KInstance + index_,
+                NMEA2000.GetN2kSource(AlarmDevice),
+                N2kts_AlertLanguageEnglishUS,
+                sensor_->descriptionValue,
+                TempSourceNames[sensor_->GetSourceId()]
+            );
+
+            // FaultAlert initialisieren (englisch)
+            sensor_->FaultAlert.SetAlertSystem(
+                index_,
+                gN2KInstance + index_,
+                NMEA2000.GetN2kSource(AlarmDevice),
+                N2kts_AlertLanguageEnglishUS,
+                (char*)"DS1820 faulty or not connected",
+                (char*)"Temperature sensor"
+            );
+
 
             sensor_->Alert.SetAlertDataSource(gN2KInstance + index_, 0, NMEA2000.GetN2kSource(TemperaturDevice));
             sensor_->Alert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
-
             sensor_->Alert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
+
+			sensor_->FaultAlert.SetAlertDataSource(gN2KInstance + index_, 0, NMEA2000.GetN2kSource(TemperaturDevice));
+            sensor_->FaultAlert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
+            sensor_->FaultAlert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
         }
         index_++;
         sensor_ = (Sensor*)sensor_->getNext();
@@ -261,6 +284,10 @@ void SendAlarm() {
             sensor_->AlarmScheduler.UpdateNextTime();
 
             tN2kMsg N2kMsg_;
+
+            sensor_->FaultAlert.SetN2kAlert(N2kMsg_);
+            NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
+
             sensor_->Alert.SetN2kAlert(N2kMsg_);
             NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
         }
@@ -269,7 +296,6 @@ void SendAlarm() {
 }
 
 void SendAlarmText() {
-
     Sensor* sensor_ = &Sensor1;
     while (sensor_ != nullptr) {
         if (sensor_->isActive() && sensor_->TextAlarmScheduler.IsTime()) {
@@ -282,13 +308,18 @@ void SendAlarmText() {
             minutes_ = minutes_ % 60;
 
             String timestamp_ = String(hours_) + ":" + (minutes_ < 10 ? "0" : "") + String(minutes_) + ":" + (seconds_ < 10 ? "0" : "") + String(seconds_);
-            WebSerial.printf("%s: SendAlarmText\n", timestamp_.c_str());
+            //WebSerial.printf("%s: Alert is active, send AlertText\n", timestamp_.c_str());
 
             sensor_->TextAlarmScheduler.UpdateNextTime();
 
             tN2kMsg N2kMsg_;
+
+            sensor_->FaultAlert.SetN2kAlertText(N2kMsg_);
+            NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
+
             sensor_->Alert.SetN2kAlertText(N2kMsg_);
             NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
+
         }
         sensor_ = (Sensor*)sensor_->getNext();
     }
