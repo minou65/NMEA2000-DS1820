@@ -9,6 +9,8 @@
 	#include "WProgram.h"
 #endif
 
+#include "common.h"
+
 #include <IotWebConf.h>
 #include <IotWebConfOptionalGroup.h>
 #include <N2kTimer.h>
@@ -80,6 +82,8 @@ const char wifiInitialApPassword[] PROGMEM = "123456789";
 #else
 #define ON_LEVEL LOW
 #endif
+
+
 
 
 extern void wifiInit();
