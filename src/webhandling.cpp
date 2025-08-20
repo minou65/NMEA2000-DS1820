@@ -1,5 +1,3 @@
-#define DEBUG_WIFI(m) SERIAL_DBG.print(m)
-
 #include <Arduino.h>
 #include <ArduinoOTA.h>
 #if defined(ESP32)
@@ -14,8 +12,6 @@
 #include <time.h>
 //needed for library
 
-
-#include "common.h"
 #include "webhandling.h"
 #include "favicon.h"
 #include "neotimer.h"
