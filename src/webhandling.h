@@ -94,34 +94,31 @@ extern IotWebConf iotWebConf;
 class Sensor : public iotwebconf::ChainedParameterGroup {
 public:
     Sensor(const char* id) : ChainedParameterGroup(id, "Sensor") {
-        // -- Update parameter Ids to have unique ID for all parameters within the application.
-        snprintf(sourceId, STRING_LEN, "%s-source", this->getId());
-        snprintf(thresholdId, STRING_LEN, "%s-threshold", this->getId());
-        snprintf(methodId, STRING_LEN, "%s-method", this->getId());
-        snprintf(descriptionId, STRING_LEN, "%s-description", this->getId());
-        snprintf(silenceId, STRING_LEN, "%s-silence", this->getId());
+        snprintf(_sourceId, STRING_LEN, "%s-source", this->getId());
+        snprintf(_thresholdId, STRING_LEN, "%s-threshold", this->getId());
+        snprintf(_methodId, STRING_LEN, "%s-method", this->getId());
+        snprintf(_descriptionId, STRING_LEN, "%s-description", this->getId());
+        snprintf(_silenceId, STRING_LEN, "%s-silence", this->getId());
 
-        // -- Add parameters to this group.
-        this->addItem(&this->SourceParam);
-        this->addItem(&this->ThresholdParam);
-        this->addItem(&this->MethodParam);
-        this->addItem(&this->DescriptionParam);
-        this->addItem(&this->TemporarySilenceParam);
+        this->addItem(&_SourceParam);
+        this->addItem(&_ThresholdParam);
+        this->addItem(&_MethodParam);
+        this->addItem(&_DescriptionParam);
+        this->addItem(&_TemporarySilenceParam);
 
-        value = 9.99;
-
-
+        _value = 9.99;
     }
 
-    char sourceValue[STRING_LEN];
-    char thresholdValue[NUMBER_LEN];
-    char methodValue[STRING_LEN];
-    char descriptionValue[STRING_LEN];
-    char silenceValue[STRING_LEN];
-    iotwebconf::SelectParameter SourceParam = iotwebconf::SelectParameter(
+    char _sourceValue[STRING_LEN];
+    char _thresholdValue[NUMBER_LEN];
+    char _methodValue[STRING_LEN];
+    char _descriptionValue[STRING_LEN];
+    char _silenceValue[STRING_LEN];
+
+    iotwebconf::SelectParameter _SourceParam = iotwebconf::SelectParameter(
         "Source",
-        sourceId,
-        sourceValue,
+        _sourceId,
+        _sourceValue,
         sizeof(TempSourceNames[0]),
         (char*)TempSourceValues,
         (char*)TempSourceNames,
@@ -130,139 +127,79 @@ public:
         "1"
     );
 
-    iotwebconf::NumberParameter ThresholdParam = iotwebconf::NumberParameter("Threshold (&deg;C)", thresholdId, thresholdValue, NUMBER_LEN, "0", "0..200", "min='0' max='200' step='1'");
+    iotwebconf::NumberParameter _ThresholdParam = iotwebconf::NumberParameter(
+        "Threshold (&deg;C)", _thresholdId, _thresholdValue, NUMBER_LEN, "0", "0..200", "min='0' max='200' step='1'");
 
-    iotwebconf::SelectParameter MethodParam = iotwebconf::SelectParameter(
+    iotwebconf::SelectParameter _MethodParam = iotwebconf::SelectParameter(
         "Method",
-        methodId,
-        methodValue,
+        _methodId,
+        _methodValue,
         sizeof(ThresholdMethodNames[0]),
         (char*)ThresholdMethodValues,
         (char*)ThresholdMethodNames,
-        sizeof(ThresholdMethodValues) / sizeof(ThresholdMethodValues[0]),
+        sizeof(ThresholdMethodValues) / sizeof(ThresholdMethodNames[0]),
         sizeof(ThresholdMethodNames[0]),
         "2"
     );
 
-    iotwebconf::TextParameter DescriptionParam = iotwebconf::TextParameter("Alert Description", descriptionId, descriptionValue, STRING_LEN, "Alert");
+    iotwebconf::TextParameter _DescriptionParam = iotwebconf::TextParameter(
+        "Alert Description", _descriptionId, _descriptionValue, STRING_LEN, "Alert");
 
-    iotwebconf::NumberParameter TemporarySilenceParam = iotwebconf::NumberParameter("Temporary silence time (minutes)", silenceId, silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'");
+    iotwebconf::NumberParameter _TemporarySilenceParam = iotwebconf::NumberParameter(
+        "Temporary silence time (minutes)", _silenceId, _silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'");
 
     void SetSensorValue(const double v) {
-        value = v;
+        _value = v;
         if (v == -127.0) {
-            FaultAlert.SetAlertExceeded(); // Activate fault alert (sensor defective or not connected)
+            _FaultAlert.SetAlertExceeded();
         }
         else {
-            FaultAlert.ResetAlert();       // Reset fault alert if sensor is OK again
-            Alert.TestAlertThreshold(value); // Normal threshold check
+            _FaultAlert.ResetAlert();
+            _Alert.TestAlertThreshold(_value);
         }
     }
 
-    double GetSensorValue() { return value; };
-    uint8_t GetSourceId() { return atoi(sourceValue); };
-    uint8_t GetThresholdMethod() { return atoi(methodValue); };
-    uint32_t GetThresholdValue() { return atoi(thresholdValue); };
-    uint16_t GetTemporarySilenceTime() { return atoi(silenceValue); };
+    double GetSensorValue() { return _value; }
+    uint8_t GetSourceId() { return atoi(_sourceValue); }
+    uint8_t GetThresholdMethod() { return atoi(_methodValue); }
+    uint32_t GetThresholdValue() { return atoi(_thresholdValue); }
+    uint16_t GetTemporarySilenceTime() { return atoi(_silenceValue); }
 
-    tN2kSyncScheduler AlarmScheduler = tN2kSyncScheduler(false, 500, 100);
-    tN2kSyncScheduler TextAlarmScheduler = tN2kSyncScheduler(false, 10000, 2000);
-    tN2kSyncScheduler SchedulerTemperatur = tN2kSyncScheduler(false, 2000, 500);
+    tN2kSyncScheduler _AlarmScheduler = tN2kSyncScheduler(false, 500, 100);
+    tN2kSyncScheduler _TextAlarmScheduler = tN2kSyncScheduler(false, 10000, 2000);
+    tN2kSyncScheduler _SchedulerTemperatur = tN2kSyncScheduler(false, 2000, 500);
 
-    tN2kAlert Alert = tN2kAlert(
-        N2kts_AlertTypeCaution,         // Type: Caution
-        N2kts_AlertCategoryTechnical,   // Category: Technical
-        100,                            // Unique Alert ID (must be different from other IDs)
-        N2kts_AlertTriggerAuto,         // Automatic trigger
-        100,                            // Priority
-        N2kts_AlertYes,                 // Temporary silence supported
-        N2kts_AlertYes,                 // Acknowledge supported
-        N2kts_AlertNo,                  // Escalation not supported
-        1                               // Occurrence threshold
+    tN2kAlert _Alert = tN2kAlert(
+        N2kts_AlertTypeCaution,
+        N2kts_AlertCategoryTechnical,
+        100,
+        N2kts_AlertTriggerAuto,
+        100,
+        N2kts_AlertYes,
+        N2kts_AlertYes,
+        N2kts_AlertNo,
+        1
     );
 
-    tN2kAlert FaultAlert = tN2kAlert(
-        N2kts_AlertTypeAlarm,           // Type: Alarm
-        N2kts_AlertCategoryTechnical,   // Category: Technical
-        101,                            // Unique Alert ID (must be different from other IDs)
-        N2kts_AlertTriggerAuto,         // Automatic trigger
-        100,                            // Priority
-        N2kts_AlertYes,                 // Temporary silence supported
-        N2kts_AlertYes,                 // Acknowledge supported
-        N2kts_AlertNo,                  // Escalation not supported
-        10                              // Occurrence threshold
+    tN2kAlert _FaultAlert = tN2kAlert(
+        N2kts_AlertTypeAlarm,
+        N2kts_AlertCategoryTechnical,
+        101,
+        N2kts_AlertTriggerAuto,
+        100,
+        N2kts_AlertYes,
+        N2kts_AlertYes,
+        N2kts_AlertNo,
+        10
     );
 
 private:
-    char sourceId[STRING_LEN];
-    char thresholdId[STRING_LEN];
-    char methodId[STRING_LEN];
-    char descriptionId[STRING_LEN];
-    char silenceId[String_Len];
-    double value;
-
-};
-
-class NMEAConfig : public iotwebconf::ParameterGroup {
-public:
-    NMEAConfig() : ParameterGroup("nmeaconfig", "NMEA configuration") {
-        snprintf(instanceID, STRING_LEN, "%s-instance", this->getId());
-        snprintf(sidID, STRING_LEN, "%s-sid", this->getId());
-        snprintf(sourceID, STRING_LEN, "%s-n2ksource", this->getId());
-
-        this->addItem(&this->InstanceParam);
-        this->addItem(&this->SIDParam);
-
-         //iotWebConf.addHiddenParameter(&this->SourceParam);
-        this->addItem(&this->SourceParam);
-        SourceParam.visible = false;
-
-        // additional sources
-        snprintf(sourceIDAlert, STRING_LEN, "%s-sourceAlert", this->getId());
-
-        // iotWebConf.addHiddenParameter(&this->SourceAlertParam);
-        this->addItem(&this->SourceAlertParam);
-        SourceAlertParam.visible = false;
-
-    }
-
-    uint8_t Instance() { return atoi(InstanceValue); };
-    uint8_t SID() { return atoi(SIDValue); };
-    uint8_t Source() { return atoi(SourceValue); };
-
-    void SetSource(uint8_t source_) {
-        String s;
-        s = (String)source_;
-        strncpy(SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
-    }
-
-    // additional sources
-    uint8_t SourceAlert() { return atoi(SourceAlertValue); };
-
-    void SetSourceAlert(uint8_t source_) {
-        String s;
-        s = (String)source_;
-        strncpy(SourceAlertParam.valueBuffer, s.c_str(), NUMBER_LEN);
-    }
-
-private:
-    iotwebconf::NumberParameter InstanceParam = iotwebconf::NumberParameter("Instance", instanceID, InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'");
-    iotwebconf::NumberParameter SIDParam = iotwebconf::NumberParameter("SID", sidID, SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'");
-    iotwebconf::NumberParameter SourceParam = iotwebconf::NumberParameter("N2kSource", sourceID, SourceValue, NUMBER_LEN, "22");
-
-    char InstanceValue[NUMBER_LEN];
-    char SIDValue[NUMBER_LEN];
-    char SourceValue[NUMBER_LEN];
-
-
-    char instanceID[STRING_LEN];
-    char sidID[STRING_LEN];
-    char sourceID[STRING_LEN];
-
-    // additional sources
-    iotwebconf::NumberParameter SourceAlertParam = iotwebconf::NumberParameter("N2kSourceAlert", sourceIDAlert, SourceAlertValue, NUMBER_LEN, "23");
-    char SourceAlertValue[NUMBER_LEN];
-    char sourceIDAlert[STRING_LEN];
+    char _sourceId[STRING_LEN];
+    char _thresholdId[STRING_LEN];
+    char _methodId[STRING_LEN];
+    char _descriptionId[STRING_LEN];
+    char _silenceId[STRING_LEN];
+    double _value;
 };
 
 extern Sensor Sensor1;
