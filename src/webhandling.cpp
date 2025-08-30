@@ -125,8 +125,8 @@ void wifiInit() {
     // -- Set up required URL handlers on the web server.
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) { handleRoot(request); });
     server.on("/config", HTTP_ANY, [](AsyncWebServerRequest* request) {
-        AsyncWebRequestWrapper asyncWebRequestWrapper(request);
-        iotWebConf.handleConfig(&asyncWebRequestWrapper);
+        auto* asyncWebRequestWrapper = new AsyncWebRequestWrapper(request);
+        iotWebConf.handleConfig(asyncWebRequestWrapper);
         }
     );
     server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {
