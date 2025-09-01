@@ -48,6 +48,23 @@ DallasTemperature sensors(&oneWire);
 
 int8_t gDeviceCount = 1;
 
+void ParseAlertResponse(const tN2kMsg& N2kMsg);
+
+typedef struct {
+    unsigned long PGN;
+    void (*Handler)(const tN2kMsg& N2kMsg);
+} tNMEA2000Handler;
+
+tNMEA2000Handler NMEA2000Handlers[] = {
+    {126984L, ParseAlertResponse},
+    {0,0}
+};
+
+const unsigned long ReciveMessages[] PROGMEM = {
+    126984L,
+    0
+};
+
 // List here messages your device will transmit.
 const unsigned long TemperaturDeviceMessages[] PROGMEM = { 
     130310L, // Environmental Parameters - DEPRECATED
@@ -73,6 +90,21 @@ void OnN2kOpen() {
             _sensor->TemperatureScheduler.UpdateNextTime();
         }
         _sensor = (Sensor*)_sensor->getNext();
+    }
+}
+
+void handleN2kMessages(const tN2kMsg& N2kMsg) {
+    uint16_t handlerIndex_ = 0;
+
+    // Search for a matching handler for the message's PGN
+    while (NMEA2000Handlers[handlerIndex_].PGN != 0 &&
+        N2kMsg.PGN != NMEA2000Handlers[handlerIndex_].PGN) {
+        handlerIndex_++;
+    }
+
+    // If a matching handler was found, call it
+    if (NMEA2000Handlers[handlerIndex_].PGN != 0) {
+        NMEA2000Handlers[handlerIndex_].Handler(N2kMsg);
     }
 }
 
@@ -130,8 +162,7 @@ void setup() {
     NMEA2000.SetDeviceCount(2);
 
     NMEA2000.SetOnOpen(OnN2kOpen);
-
-
+    NMEA2000.SetMsgHandler(handleN2kMessages);0
 
     // Set Product information for Temperatur Device
     NMEA2000.SetProductInformation(
@@ -341,7 +372,16 @@ void SendTemperatur(uint8_t SID, uint8_t TempInstance) {
 
 }
 
-
+void ParseAlertResponse(const tN2kMsg& N2kMsg) {
+    Sensor* sensor_ = &Sensor1;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            sensor_->Alert.ParseAlertResponse(N2kMsg);
+            sensor_->FaultAlert.ParseAlertResponse(N2kMsg);
+        }
+        sensor_ = (Sensor*)sensor_->getNext();
+    }
+}
 
 void loop() {
     wifiLoop();
