@@ -64,8 +64,11 @@ Depending on the temperature source, one of the following PGNs are sent:
 The device is also capable of sending alerts. In this case these PGNs are used:
 
 - 126983, // Alert
-- 126984, // Alert response
 - 126985, // Alert text
+
+and it will recive the PGN
+
+- 126984, // Alert response
 
 ## Libraries
 
