@@ -43,12 +43,6 @@ OneWire oneWire(ONE_WIRE_BUS);
 // Task handle for OneWire read (Core 0 on ESP32)
 TaskHandle_t TaskHandle;
 
-// Configuration for the Watchdog Timer
-esp_task_wdt_config_t wdt_config = {
-    .timeout_ms = 5000, // Timeout in milliseconds
-    .trigger_panic = true // Trigger panic if the Watchdog Timer expires
-};
-
 // Pass OneWire reference to Dallas Temperature
 DallasTemperature sensors(&oneWire);
 
@@ -110,11 +104,11 @@ void setup() {
 
     gDeviceCount = sensors.getDeviceCount();
 
+	Serial.print("Found "); Serial.print(gDeviceCount); Serial.println(" devices.");
+
     // init wifi
     wifiInit();
     InitDeviceId();
-
-    Sensor1.setActive(true);
 
     // Create GetTemperature task for core 0, loop() runs on core 1
     xTaskCreatePinnedToCore(
@@ -215,10 +209,6 @@ void setup() {
     NMEA2000.Open();
 
     InitAlertsystem();
-
-    // Initialize the Watchdog Timer
-    esp_task_wdt_init(&wdt_config);
-    esp_task_wdt_add(NULL); //add current thread to WDT watch
 }
 
 void InitDeviceId() {
@@ -250,28 +240,27 @@ void InitAlertsystem() {
                 NMEA2000.GetN2kSource(AlarmDevice),
                 N2kts_AlertLanguageEnglishUS,
                 const_cast<char*>(sensor_->GetDescriptionValue()),
-                TempSourceNames[sensor_->GetSourceId()]
+                const_cast<char*>(sensor_->GetSourceName())
             );
+            sensor_->Alert.SetAlertDataSource(gN2KInstance + index_, 0, NMEA2000.GetN2kSource(TemperaturDevice));
+            sensor_->Alert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
+            sensor_->Alert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
+            index_++;
 
+            String faultDescription_ = String(sensor_->GetDescriptionValue()) + " DS1820 faulty or not connected";
             sensor_->FaultAlert.SetAlertSystem(
                 index_,
                 gN2KInstance + index_,
                 NMEA2000.GetN2kSource(AlarmDevice),
                 N2kts_AlertLanguageEnglishUS,
-                (char*)"DS1820 faulty or not connected",
-                TempSourceNames[sensor_->GetSourceId()]
+                const_cast<char*>(faultDescription_.c_str()),
+                const_cast<char*>(sensor_->GetSourceName())
             );
-
-
-            sensor_->Alert.SetAlertDataSource(gN2KInstance + index_, 0, NMEA2000.GetN2kSource(TemperaturDevice));
-            sensor_->Alert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
-            sensor_->Alert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
-
-			sensor_->FaultAlert.SetAlertDataSource(gN2KInstance + index_, 0, NMEA2000.GetN2kSource(TemperaturDevice));
+            sensor_->FaultAlert.SetAlertDataSource(gN2KInstance + index_, 0, NMEA2000.GetN2kSource(TemperaturDevice));
             sensor_->FaultAlert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
             sensor_->FaultAlert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
+            index_++;
         }
-        index_++;
         sensor_ = (Sensor*)sensor_->getNext();
     }
 }
@@ -369,8 +358,6 @@ void loop() {
     if (Serial.available()) {
         Serial.read();
     }
-
-    esp_task_wdt_reset();
 }
 
 double GetTemperatur(int Index) {
@@ -381,8 +368,6 @@ double GetTemperatur(int Index) {
 }
 
 void loop2(void* parameter) {
-    esp_task_wdt_add(NULL); //add current thread to WDT watch (Core 0)
-
     
     for (;;) {   // Endless loop
         sensors.requestTemperatures(); // Send the command to get temperatures
@@ -394,14 +379,10 @@ void loop2(void* parameter) {
             if (_sensor->isActive()) {
                 double d = GetTemperatur(_index);
                 _sensor->SetSensorValue(d);
-                _sensor->Alert.TestAlertThreshold(d);
             }
             _index++;
             _sensor = (Sensor*)_sensor->getNext();
         }
-
-        esp_task_wdt_reset();
-
         vTaskDelay(1000);
     }
 }

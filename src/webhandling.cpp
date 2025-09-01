@@ -28,10 +28,10 @@ extern void UpdateAlertSystem();
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
 const char thingName[] = "NMEA-DS1820";
 
-Sensor Sensor1 = Sensor("sensor1");
-Sensor Sensor2 = Sensor("sensor2");
-Sensor Sensor3 = Sensor("sensor3");
-Sensor Sensor4 = Sensor("sensor4");
+Sensor Sensor1 = Sensor("sensor1", "Sensor 1");
+Sensor Sensor2 = Sensor("sensor2", "Sensor 2");
+Sensor Sensor3 = Sensor("sensor3", "Sensor 3");
+Sensor Sensor4 = Sensor("sensor4", "Sensor 4");
 
 NMEAConfig Config = NMEAConfig();
 
@@ -70,6 +70,13 @@ IotWebConf iotWebConf(thingName, &dnsServer, &asyncWebServerWrapper, wifiInitial
 char APModeOfflineValue[STRING_LEN];
 iotwebconf::NumberParameter APModeOfflineParam = iotwebconf::NumberParameter("AP offline mode after (minutes)", "APModeOffline", APModeOfflineValue, NUMBER_LEN, "0", "0..30", "min='0' max='30', step='1'");
 
+void resetAllSensors() {
+    Sensor* sensor = &Sensor1;
+    while (sensor != nullptr) {
+        sensor->resetToDefaults();
+        sensor = sensor->getNext();
+    }
+}
 
 void wifiInit() {
     Serial.begin(115200);
@@ -84,25 +91,15 @@ void wifiInit() {
     iotWebConf.addParameterGroup(&Config);
 
     iotWebConf.addParameterGroup(&Sensor1);
-    Sensor1.setActive(true);
 
-    if (gDeviceCount >= 2) {
-        Sensor1.setNext(&Sensor2);
-        iotWebConf.addParameterGroup(&Sensor2);
-        Sensor2.setActive(true);
-    }
+    Sensor1.setNext(&Sensor2);
+    iotWebConf.addParameterGroup(&Sensor2);
 
-    if (gDeviceCount >= 3) {
-        Sensor2.setNext(&Sensor3);
-        iotWebConf.addParameterGroup(&Sensor3);
-        Sensor3.setActive(true);
-    }
+    Sensor2.setNext(&Sensor3);
+    iotWebConf.addParameterGroup(&Sensor3);
 
-    if (gDeviceCount >= 4) {
-        Sensor3.setNext(&Sensor4);
-        iotWebConf.addParameterGroup(&Sensor4);
-        Sensor4.setActive(true);
-    }
+    Sensor3.setNext(&Sensor4);
+    iotWebConf.addParameterGroup(&Sensor4);
 
     iotWebConf.addSystemParameter(&APModeOfflineParam);
 
@@ -221,76 +218,60 @@ protected:
     }
 };
 
-void handleRoot(AsyncWebServerRequest* request){
+void handleRoot(AsyncWebServerRequest* request) {
     AsyncWebRequestWrapper asyncWebRequestWrapper(request);
     if (iotWebConf.handleCaptivePortal(&asyncWebRequestWrapper)) {
         return;
     }
 
-    std::string content_;
+    AsyncResponseStream* response_ = request->beginResponseStream("text/html", 512);
     MyHtmlRootFormatProvider fp_;
 
-	content_ += fp_.getHtmlHead(iotWebConf.getThingName()).c_str();
-	content_ += fp_.getHtmlStyle().c_str();
-	content_ += fp_.getHtmlHeadEnd().c_str();
-	content_ += fp_.getHtmlScript().c_str();
-	content_ += fp_.getHtmlTable().c_str();
-	content_ += fp_.getHtmlTableRow().c_str();
-	content_ += fp_.getHtmlTableCol().c_str();
-	content_ += String(F("<fieldset align=left style=\"border: 1px solid\">\n")).c_str();
-	content_ += String(F("<table border=\"0\" align=\"center\" width=\"100%\">\n")).c_str();
-	content_ += String(F("<tr><td align=\"left\"> </td></td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr>\n")).c_str();
-	content_ += fp_.getHtmlTableEnd().c_str();
-	content_ += fp_.getHtmlFieldsetEnd().c_str();
-	content_ += fp_.getHtmlFieldset("Temperature").c_str();
-	content_ += fp_.getHtmlTable().c_str();
-	Sensor* _sensor = &Sensor1;
-	uint8_t _i = 1;
-	while (_sensor != nullptr) {
-		if (_sensor->isActive()) {
-			content_ += fp_.getHtmlTableRowSpan(String(TempSourceNames[_sensor->GetSourceId()]), "no data", "sensor" + String(_i)).c_str();
-		}
-		_sensor = (Sensor*)_sensor->getNext();
-		_i++;
-	}
-	content_ += fp_.getHtmlTableEnd().c_str();
-	content_ += fp_.getHtmlFieldsetEnd().c_str();
-	content_ += fp_.getHtmlFieldset("Network").c_str();
-	content_ += fp_.getHtmlTable().c_str();
-	content_ += fp_.getHtmlTableRowText("MAC Address:", WiFi.macAddress()).c_str();
-	content_ += fp_.getHtmlTableRowText("IP Address:", WiFi.localIP().toString().c_str()).c_str();
-	content_ += fp_.getHtmlTableEnd().c_str();
-	content_ += fp_.getHtmlFieldsetEnd().c_str();
-	content_ += fp_.addNewLine(2).c_str();
-	content_ += fp_.getHtmlTable().c_str();
-	content_ += fp_.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration.").c_str();
-	content_ += fp_.getHtmlTableRowText(fp_.getHtmlVersion(Version)).c_str();
-	content_ += fp_.getHtmlTableEnd().c_str();
-	content_ += fp_.getHtmlTableColEnd().c_str();
-	content_ += fp_.getHtmlTableRowEnd().c_str();
-	content_ += fp_.getHtmlTableEnd().c_str();
-	content_ += fp_.getHtmlEnd().c_str();
+    response_->print(fp_.getHtmlHead(iotWebConf.getThingName()));
+    response_->print(fp_.getHtmlStyle());
+    response_->print(fp_.getHtmlHeadEnd());
+    response_->print(fp_.getHtmlScript());
+    response_->print(fp_.getHtmlTable());
+    response_->print(fp_.getHtmlTableRow());
+    response_->print(fp_.getHtmlTableCol());
+    response_->print(F("<fieldset align=left style=\"border: 1px solid\">\n"));
+    response_->print(F("<table border=\"0\" align=\"center\" width=\"100%\">\n"));
+    response_->print(F("<tr><td align=\"left\"> </td></td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr>\n"));
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
+    response_->print(fp_.getHtmlFieldset("Temperature"));
+    response_->print(fp_.getHtmlTable());
 
-    std::shared_ptr<uint16_t> pos_ = std::make_shared<uint16_t>(0);
+    Sensor* _sensor = &Sensor1;
+    uint8_t _i = 1;
+    while (_sensor != nullptr) {
+        if (_sensor->isActive()) {
+            response_->print(fp_.getHtmlTableRowSpan(String(_sensor->GetSourceName()) + ": ", "no data", "sensor" + String(_i)));
+        }
+        _sensor = (Sensor*)_sensor->getNext();
+        _i++;
+    }
 
-    AsyncWebServerResponse* response = request->beginChunkedResponse("text/html", [content_, pos_](uint8_t* buffer, size_t maxLen, size_t index) -> size_t {
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
+    response_->print(fp_.getHtmlFieldset("Network"));
+    response_->print(fp_.getHtmlTable());
+    response_->print(fp_.getHtmlTableRowText("MAC Address:", WiFi.macAddress()));
+    response_->print(fp_.getHtmlTableRowText("IP Address:", WiFi.localIP().toString()));
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
+    response_->print(fp_.addNewLine(2));
+    response_->print(fp_.getHtmlTable());
+    response_->print(fp_.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration."));
+    response_->print(fp_.getHtmlTableRowText(fp_.getHtmlVersion(Version)));
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlTableColEnd());
+    response_->print(fp_.getHtmlTableRowEnd());
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlEnd());
 
-        std::string chunk_ = "";
-		size_t len_ = min(content_.length() - *pos_, maxLen);
-		if (len_ > 0) {
-			chunk_ = content_.substr(*pos_, len_ - 1);
-			chunk_.copy((char*)buffer, chunk_.length());
-			*pos_ += len_;
-		}
-		if (*pos_ <= content_.length())
-			return chunk_.length();
-		else
-			return 0;
-
-        });
-    response->addHeader("Server", "ESP Async Web Server");
-    request->send(response);
-
+    response_->addHeader("Server", "ESP Async Web Server");
+    request->send(response_);
 }
 
 void convertParams() {

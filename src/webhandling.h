@@ -34,6 +34,7 @@ static char ThresholdMethodNames[][14] PROGMEM = {
 };
 
 static char TempSourceValues[][3] PROGMEM = {
+	"99",
     "0",
     "1",
     "2",
@@ -49,6 +50,7 @@ static char TempSourceValues[][3] PROGMEM = {
 };
 
 static char TempSourceNames[][27] PROGMEM = {
+	"None",
     "Sea water temperature",
     "Outside temperature",
     "Inside temperature",
@@ -61,6 +63,7 @@ static char TempSourceNames[][27] PROGMEM = {
     "Freezer temperature",
     "Exhaust gas temperature",
     "Shaft seal temparature"
+    
 };
 
 // -- Initial password to connect to the Thing, when it creates an own Access Point.
@@ -77,11 +80,9 @@ const char wifiInitialApPassword[] PROGMEM = "123456789";
 //      First it will light up (kept LOW), on Wifi connection it will blink,
 //      when connected to the Wifi it will turn off (kept HIGH).
 #define STATUS_PIN LED_BUILTIN
-#if ESP32 
+
 #define ON_LEVEL HIGH
-#else
-#define ON_LEVEL LOW
-#endif
+
 
 
 
@@ -91,22 +92,60 @@ extern void wifiLoop();
 
 extern IotWebConf iotWebConf;
 
-class Sensor : public iotwebconf::ChainedParameterGroup {
+class Sensor : public iotwebconf::ParameterGroup {
 public:
-    explicit Sensor(const char* id)
-        : ChainedParameterGroup(id, "Sensor"),
-          _value(9.99),
-          _SourceParam("Source", _sourceId, _sourceValue, sizeof(TempSourceNames[0]),
-                       (char*)TempSourceValues, (char*)TempSourceNames,
-                       sizeof(TempSourceValues) / sizeof(TempSourceValues[0]),
-                       sizeof(TempSourceNames[0]), "1"),
-          _ThresholdParam("Threshold (&deg;C)", _thresholdId, _thresholdValue, NUMBER_LEN, "0", "0..200", "min='0' max='200' step='1'"),
-          _MethodParam("Method", _methodId, _methodValue, sizeof(ThresholdMethodNames[0]),
-                       (char*)ThresholdMethodValues, (char*)ThresholdMethodNames,
-                       sizeof(ThresholdMethodValues) / sizeof(ThresholdMethodNames[0]),
-                       sizeof(ThresholdMethodNames[0]), "2"),
-          _DescriptionParam("Alert Description", _descriptionId, _descriptionValue, STRING_LEN, "Alert"),
-          _TemporarySilenceParam("Temporary silence time (minutes)", _silenceId, _silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'")
+    explicit Sensor(const char* id, const char* name)
+        : ParameterGroup(id, name),
+        _value(9.99),
+        _next(nullptr),
+        _SourceParam(
+            "Source", 
+            _sourceId, 
+            _sourceValue, 
+            sizeof(_sourceValue),
+            (char*)TempSourceValues, 
+            (char*)TempSourceNames,
+            sizeof(TempSourceValues) / sizeof(TempSourceValues[0]),
+            sizeof(TempSourceNames[0]), 
+            "0"),
+        _ThresholdParam("Threshold (&deg;C)", _thresholdId, _thresholdValue, NUMBER_LEN, "0", "0..200", "min='0' max='200' step='1'"),
+        _MethodParam(
+            "Method", 
+            _methodId, 
+            _methodValue, 
+            sizeof(_methodValue),
+            (char*)ThresholdMethodValues, 
+            (char*)ThresholdMethodNames,
+            sizeof(ThresholdMethodValues) / sizeof(ThresholdMethodValues[0]),
+            sizeof(ThresholdMethodNames[0]), 
+            "2"),
+        _DescriptionParam("Alert Description", _descriptionId, _descriptionValue, STRING_LEN, "Alert"),
+        _TemporarySilenceParam("Temporary silence time (minutes)", _silenceId, _silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'"),
+        AlarmScheduler(false, 500, 100),
+        AlarmTextScheduler(false, 10000, 2000),
+        TemperatureScheduler(false, 2000, 500),
+        Alert(
+            N2kts_AlertTypeCaution,
+            N2kts_AlertCategoryTechnical,
+            100,
+            N2kts_AlertTriggerAuto,
+            100,
+            N2kts_AlertYes,
+            N2kts_AlertYes,
+            N2kts_AlertNo,
+            1
+        ),
+        FaultAlert(
+            N2kts_AlertTypeAlarm,
+            N2kts_AlertCategoryTechnical,
+            101,
+            N2kts_AlertTriggerAuto,
+            100,
+            N2kts_AlertYes,
+            N2kts_AlertYes,
+            N2kts_AlertNo,
+            10
+        )
     {
         snprintf(_sourceId, STRING_LEN, "%s-source", this->getId());
         snprintf(_thresholdId, STRING_LEN, "%s-threshold", this->getId());
@@ -114,68 +153,74 @@ public:
         snprintf(_descriptionId, STRING_LEN, "%s-description", this->getId());
         snprintf(_silenceId, STRING_LEN, "%s-silence", this->getId());
 
-        this->addItem(&_SourceParam);
-        this->addItem(&_ThresholdParam);
-        this->addItem(&_MethodParam);
-        this->addItem(&_DescriptionParam);
-        this->addItem(&_TemporarySilenceParam);
+        addItem(&_SourceParam);
+        addItem(&_ThresholdParam);
+        addItem(&_MethodParam);
+        addItem(&_DescriptionParam);
+        addItem(&_TemporarySilenceParam);
     }
+
+    void setNext(Sensor* next) { _next = next; }
+    Sensor* getNext() const { return _next; }
 
     void SetSensorValue(double v) {
         _value = v;
+		Alert.TestAlertThreshold(_value);
+
         if (v == -127.0) {
             FaultAlert.SetAlertExceeded();
-        } else {
+        }
+        else {
             FaultAlert.ResetAlert();
             Alert.TestAlertThreshold(_value);
         }
     }
 
+	bool isActive() const { return GetSourceId() != 99; }
+
     double GetSensorValue() const { return _value; }
     uint8_t GetSourceId() const { return static_cast<uint8_t>(atoi(_sourceValue)); }
+    const char* GetSourceName() const {
+        for (size_t i = 0; i < sizeof(TempSourceValues) / sizeof(TempSourceValues[0]); ++i) {
+            if (strcmp(_sourceValue, TempSourceValues[i]) == 0) {
+                return TempSourceNames[i];
+            }
+        }
+        return TempSourceNames[0]; // Fallback: "None"
+    }
     uint8_t GetThresholdMethod() const { return static_cast<uint8_t>(atoi(_methodValue)); }
     uint32_t GetThresholdValue() const { return static_cast<uint32_t>(atoi(_thresholdValue)); }
     uint16_t GetTemporarySilenceTime() const { return static_cast<uint16_t>(atoi(_silenceValue)); }
     const char* GetDescriptionValue() const { return _descriptionValue; }
 
-    tN2kSyncScheduler AlarmScheduler = tN2kSyncScheduler(false, 500, 100);
-    tN2kSyncScheduler AlarmTextScheduler = tN2kSyncScheduler(false, 10000, 2000);
-    tN2kSyncScheduler TemperatureScheduler = tN2kSyncScheduler(false, 2000, 500);
+    void resetToDefaults() {
+        _value = 9.99;
+        _SourceParam.applyDefaultValue();
+        _ThresholdParam.applyDefaultValue();
+        _MethodParam.applyDefaultValue();
+        _DescriptionParam.applyDefaultValue();
+        _TemporarySilenceParam.applyDefaultValue();
+    }
 
-    tN2kAlert Alert = tN2kAlert(
-        N2kts_AlertTypeCaution,
-        N2kts_AlertCategoryTechnical,
-        100,
-        N2kts_AlertTriggerAuto,
-        100,
-        N2kts_AlertYes,
-        N2kts_AlertYes,
-        N2kts_AlertNo,
-        1
-    );
+    tN2kSyncScheduler AlarmScheduler;
+    tN2kSyncScheduler AlarmTextScheduler;
+    tN2kSyncScheduler TemperatureScheduler;
 
-    tN2kAlert FaultAlert = tN2kAlert(
-        N2kts_AlertTypeAlarm,
-        N2kts_AlertCategoryTechnical,
-        101,
-        N2kts_AlertTriggerAuto,
-        100,
-        N2kts_AlertYes,
-        N2kts_AlertYes,
-        N2kts_AlertNo,
-        10
-    );
+    tN2kAlert Alert;
+    tN2kAlert FaultAlert;
 
 private:
+    Sensor* _next;
+
     char _sourceId[STRING_LEN];
     char _thresholdId[STRING_LEN];
     char _methodId[STRING_LEN];
     char _descriptionId[STRING_LEN];
     char _silenceId[STRING_LEN];
 
-    char _sourceValue[STRING_LEN]{};
+    char _sourceValue[3]{};
     char _thresholdValue[NUMBER_LEN]{};
-    char _methodValue[STRING_LEN]{};
+    char _methodValue[3]{};
     char _descriptionValue[STRING_LEN]{};
     char _silenceValue[STRING_LEN]{};
 
@@ -186,6 +231,7 @@ private:
     iotwebconf::NumberParameter _TemporarySilenceParam;
 
     double _value;
+
 };
 
 class NMEAConfig : public iotwebconf::ParameterGroup {
