@@ -18,6 +18,7 @@
 #include <DallasTemperature.h>
 #include <esp_task_wdt.h>
 #include <esp_mac.h>
+#include <Preferences.h>
 
 #include <N2kAlertTypes.h>
 #include <NMEA2000_CAN.h>
@@ -30,12 +31,9 @@
 
 char Version[] = VERSION_STR; // Manufacturer's Software version code
 
-uint8_t gN2KSource[] = { 22, 23 };
+uint8_t gN2KSource[] = { 22, 23, 24, 25 };
 uint8_t gN2KInstance = 1;
 uint8_t gN2KSID = 255;
-
-uint64_t DeviceId1 = 0;
-uint64_t DeviceId2 = 0;
 
 // Setup a OneWire instance to communicate with any OneWire devices
 OneWire oneWire(ONE_WIRE_BUS);
@@ -48,17 +46,17 @@ DallasTemperature sensors(&oneWire);
 
 int8_t gDeviceCount = 1;
 
-void ParseAlertResponse(const tN2kMsg& N2kMsg);
+//void ParseAlertResponse(const tN2kMsg& N2kMsg);
 
 typedef struct {
     unsigned long PGN;
     void (*Handler)(const tN2kMsg& N2kMsg);
 } tNMEA2000Handler;
 
-tNMEA2000Handler NMEA2000Handlers[] = {
-    {126984L, ParseAlertResponse},
-    {0,0}
-};
+//tNMEA2000Handler NMEA2000Handlers[] = {
+//    {126984L, ParseAlertResponse},
+//    {0,0}
+//};
 
 const unsigned long ReciveMessages[] PROGMEM = {
     126984L,
@@ -70,14 +68,9 @@ const unsigned long TemperaturDeviceMessages[] PROGMEM = {
     130310L, // Environmental Parameters - DEPRECATED
     130312L, // Temperature - DEPRECATED
     130316L, // Temperature, Extended Range
-    0 
-};
-
-const unsigned long AlarmDeviceDeviceMessages[] PROGMEM = {
     126983L, // Alert
-    126984L, // Alert response
     126985L, // Alert text
-    0
+    0 
 };
 
 void OnN2kOpen() {
@@ -95,31 +88,28 @@ void OnN2kOpen() {
 
 void handleN2kMessages(const tN2kMsg& N2kMsg) {
     uint16_t handlerIndex_ = 0;
-
-    // Search for a matching handler for the message's PGN
-    while (NMEA2000Handlers[handlerIndex_].PGN != 0 &&
-        N2kMsg.PGN != NMEA2000Handlers[handlerIndex_].PGN) {
-        handlerIndex_++;
-    }
-
-    // If a matching handler was found, call it
-    if (NMEA2000Handlers[handlerIndex_].PGN != 0) {
-        NMEA2000Handlers[handlerIndex_].Handler(N2kMsg);
-    }
 }
 
 void CheckN2kSourceAddressChange() {
-
-    if (NMEA2000.GetN2kSource(TemperaturDevice) != gN2KSource[TemperaturDevice]) {
-        gN2KSource[TemperaturDevice] = NMEA2000.GetN2kSource(TemperaturDevice);
-        gSaveParams = true;
+    bool changed_ = false;
+    size_t deviceCount_ = sizeof(gN2KSource) / sizeof(gN2KSource[0]);
+    for (size_t i_ = 0; i_ < deviceCount_; ++i_) {
+        uint8_t currentSource_ = NMEA2000.GetN2kSource(i_);
+        if (gN2KSource[i_] != currentSource_) {
+            gN2KSource[i_] = currentSource_;
+            changed_ = true;
+        }
     }
-
-    if (NMEA2000.GetN2kSource(AlarmDevice) != gN2KSource[AlarmDevice]) {
-        gN2KSource[AlarmDevice] = NMEA2000.GetN2kSource(AlarmDevice);
-        gSaveParams = true;
+    if (changed_) {
+        Preferences prefs_;
+        prefs_.begin("n2k", false); // Namespace "n2k"
+        for (size_t i_ = 0; i_ < deviceCount_; ++i_) {
+            char key_[16];
+            snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
+            prefs_.putUChar(key_, gN2KSource[i_]);
+        }
+        prefs_.end();
     }
-
 }
 
 void setup() {
@@ -136,11 +126,22 @@ void setup() {
 
     gDeviceCount = sensors.getDeviceCount();
 
+    // Load N2K source addresses from Preferences if available
+    Preferences prefs_;
+    prefs_.begin("n2k", true); // read-only
+    size_t deviceCount_ = sizeof(gN2KSource) / sizeof(gN2KSource[0]);
+    for (size_t i_ = 0; i_ < deviceCount_; ++i_) {
+        char key_[16];
+        snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
+        uint8_t val_ = prefs_.getUChar(key_, gN2KSource[i_]); // fallback: current default
+        gN2KSource[i_] = val_;
+    }
+    prefs_.end();
+
 	Serial.print("Found "); Serial.print(gDeviceCount); Serial.println(" devices.");
 
     // init wifi
     wifiInit();
-    InitDeviceId();
 
     // Create GetTemperature task for core 0, loop() runs on core 1
     xTaskCreatePinnedToCore(
@@ -158,57 +159,12 @@ void setup() {
     NMEA2000.SetN2kCANReceiveFrameBufSize(250);
     NMEA2000.SetN2kCANSendFrameBufSize(250);
 
-    // Enable multi device support for 3 devices
-    NMEA2000.SetDeviceCount(2);
+    // Set the device count for NMEA2000
+    NMEA2000.SetDeviceCount(4);
 
     NMEA2000.SetOnOpen(OnN2kOpen);
-    NMEA2000.SetMsgHandler(handleN2kMessages);0
+    NMEA2000.SetMsgHandler(handleN2kMessages);
 
-    // Set Product information for Temperatur Device
-    NMEA2000.SetProductInformation(
-        "1", // Manufacturer's Model serial code
-        100, // Manufacturer's product code
-        "TempMonitor",  // Manufacturer's Model ID
-        Version,  // Manufacturer's Software version code
-        Version, // Manufacturer's Model version
-        1, // LEM
-        0xffff,
-        0xff,
-        TemperaturDevice
-    );
-
-    // Set Product information for Alarm Device
-    NMEA2000.SetProductInformation(
-        "1", // Manufacturer's Model serial code
-        100, // Manufacturer's product code
-        "Alarm",  // Manufacturer's Model ID
-        Version,  // Manufacturer's Software version code
-        Version, // Manufacturer's Model version
-        0, // LEM
-        0xffff,
-        0xff,
-        AlarmDevice
-    );
-
-    // Set temperature device information
-    NMEA2000.SetDeviceInformation(
-        DeviceId1, // Unique number. Use e.g. Serial number.
-        130, // Device function=Temperature. See DEVICE_FUNCTION (0 - 255) https://canboat.github.io/canboat/canboat.html#main
-        75, // Device class=Sensor Communication Interface. DEVICE_CLASS (0 - 127) https://canboat.github.io/canboat/canboat.html#main
-        2040, // Just choosen free from code list on MANUFACTURER_CODE (0 - 2047) https://canboat.github.io/canboat/canboat.html#main
-        4, // Marine. INDUSTRY_CODE (0 - 7)
-        TemperaturDevice
-    );
-
-    // Set temperature device information
-    NMEA2000.SetDeviceInformation(
-        DeviceId2, // Unique number. Use e.g. Serial number.
-        120, // Device function=Alarm Enunciator. See DEVICE_FUNCTION (0 - 255) https://canboat.github.io/canboat/canboat.html#main
-        20, // Device class=Safety systems. DEVICE_CLASS (0 - 127) https://canboat.github.io/canboat/canboat.html#main
-        2040, // Just choosen free from code list on MANUFACTURER_CODE (0 - 2047) https://canboat.github.io/canboat/canboat.html#main
-        4, // Marine. INDUSTRY_CODE (0 - 7)
-        AlarmDevice
-    );
 
 #ifdef DEBUG_NMEA_MSG
     Serial.begin(115200);
@@ -230,169 +186,201 @@ void setup() {
     // If you also want to see all traffic on the bus use N2km_ListenAndNode instead of N2km_NodeOnly below
     NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly);
 
-    NMEA2000.SetN2kSource(gN2KSource[TemperaturDevice], TemperaturDevice);
-    NMEA2000.SetN2kSource(gN2KSource[AlarmDevice], AlarmDevice);
-
-    // Here we tell library, which PGNs we transmit
-    NMEA2000.ExtendTransmitMessages(TemperaturDeviceMessages);
-    NMEA2000.ExtendTransmitMessages(AlarmDeviceDeviceMessages);
+    CreateDevicesForActiveSensors();
 
     NMEA2000.Open();
-
-    InitAlertsystem();
 }
 
-void InitDeviceId() {
-    uint8_t chipid[6];
-    int i = 0;
+uint64_t getDeviceUID(uint8_t devId) {
+    uint8_t chipId_[6];
+    esp_efuse_mac_get_default(chipId_);
 
-    // Generate unique numbers from chip id
-    esp_efuse_mac_get_default(chipid);
-
-    for (int i = 0; i < 6; i++) {
-        DeviceId1 += (chipid[i] << (7 * i));
-        DeviceId2 += (chipid[i] << (8 * i)); // 8*i statt 7*i
+    uint64_t uid_ = 0;
+    for (int i_ = 0; i_ < 6; i_++) {
+        uid_ += ((uint64_t)chipId_[i_] << (8 * i_));
     }
+    // Add devId as the highest byte to make the UID unique per device
+    uid_ |= ((uint64_t)devId << 48);
+    return uid_;
 }
 
-void UpdateAlertSystem() {
-    if (NMEA2000.IsOpen()) InitAlertsystem();
-}
-
-void InitAlertsystem() {
+void CreateDevicesForActiveSensors() {
     Sensor* sensor_ = &Sensor1;
-    uint8_t index_ = 0;
+    uint8_t deviceIndex_ = 0;
+
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
+            // Set source address, SID and DeviceID for this sensor
+            uint8_t source_ = gN2KSource[deviceIndex_];
+            uint8_t sid_ = gN2KSID + deviceIndex_;
+            uint64_t deviceId_ = getDeviceUID(deviceIndex_);
 
+            // Register the device with NMEA2000
+            NMEA2000.SetN2kSource(source_, deviceIndex_);
+
+            // Here we tell library, which PGNs we transmit
+            NMEA2000.ExtendTransmitMessages(TemperaturDeviceMessages, deviceIndex_);
+
+            NMEA2000.SetDeviceInformation(
+                deviceId_,
+                130, // Device function=Temperature
+                75,  // Device class=Sensor Communication Interface
+                2040, // Manufacturer code
+                4,     // Industry code
+				deviceIndex_  // Device instance
+            );
+
+            // Optionally set product information per device
+            NMEA2000.SetProductInformation(
+                String(deviceId_).c_str(), // Model serial code
+                100,
+                "Multidevice temperatur sensor",
+                Version,
+                Version,
+				1, // Load Equivalency
+				0xffff, // NMEA version
+				0xff,  // Certification level
+				deviceIndex_ // Device instance
+            );
+
+            NMEA2000.SetConfigurationInformation(
+                String(deviceId_).c_str(), // Unique number
+                sensor_->GetLocationValue(),
+                "",
+				deviceIndex_ // Device instance
+			);
+
+			uint8_t instance_ = gN2KInstance + deviceIndex_;
+
+			// each Alert-Device must have a unique instance number
+            
+            // --- Alert-Device für diesen Sensor anlegen (gleiche Adresse/Device wie Sensor) ---
+			instance_++;
             sensor_->Alert.SetAlertSystem(
-                index_,
-                gN2KInstance + index_,
-                NMEA2000.GetN2kSource(AlarmDevice),
+                instance_,
+                gN2KInstance + instance_,
+                source_, // gleiche Adresse wie Sensor
                 N2kts_AlertLanguageEnglishUS,
                 const_cast<char*>(sensor_->GetDescriptionValue()),
                 const_cast<char*>(sensor_->GetSourceName())
             );
-            sensor_->Alert.SetAlertDataSource(gN2KInstance + index_, 0, NMEA2000.GetN2kSource(TemperaturDevice));
-            sensor_->Alert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
+            sensor_->Alert.SetAlertDataSource(gN2KInstance + instance_, 0, source_);
+            sensor_->Alert.SetAlertThreshold(
+                t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
             sensor_->Alert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
-            index_++;
 
+            // --- FaultAlert-Device für diesen Sensor anlegen (gleiche Adresse/Device wie Sensor) ---
+			instance_++;
             String faultDescription_ = String(sensor_->GetDescriptionValue()) + " DS1820 faulty or not connected";
             sensor_->FaultAlert.SetAlertSystem(
-                index_,
-                gN2KInstance + index_,
-                NMEA2000.GetN2kSource(AlarmDevice),
+                instance_,
+                gN2KInstance + instance_,
+                source_, // gleiche Adresse wie Sensor
                 N2kts_AlertLanguageEnglishUS,
                 const_cast<char*>(faultDescription_.c_str()),
                 const_cast<char*>(sensor_->GetSourceName())
             );
-            sensor_->FaultAlert.SetAlertDataSource(gN2KInstance + index_, 0, NMEA2000.GetN2kSource(TemperaturDevice));
-            sensor_->FaultAlert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
+            sensor_->FaultAlert.SetAlertDataSource(gN2KInstance + instance_, 0, source_);
+            sensor_->FaultAlert.SetAlertThreshold(
+                t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
             sensor_->FaultAlert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
-            index_++;
+
+            deviceIndex_++;
         }
         sensor_ = (Sensor*)sensor_->getNext();
     }
 }
 
-void SendAlarm() {
-    Sensor* sensor_ = &Sensor1;
-    while (sensor_ != nullptr) {
-        if (sensor_->isActive() && sensor_->AlarmScheduler.IsTime()) {
-            sensor_->AlarmScheduler.UpdateNextTime();
+void SendTemperatur(Sensor* sensor, uint8_t deviceIndex) {
+    if (sensor->isActive() && sensor->TemperatureScheduler.IsTime()) {
+        sensor->TemperatureScheduler.UpdateNextTime();
 
-            tN2kMsg N2kMsg_;
+        tN2kMsg N2kMsg_;
+        uint8_t sid_ = gN2KSID + deviceIndex;
+        tN2kTempSource TempSource_ = tN2kTempSource(sensor->GetSourceId());
+        double TempValue_ = CToKelvin(sensor->GetSensorValue());
 
-            sensor_->FaultAlert.SetN2kAlert(N2kMsg_);
-            NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
+        SetN2kPGN130312(N2kMsg_, sid_, deviceIndex, TempSource_, TempValue_, N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
 
-            sensor_->Alert.SetN2kAlert(N2kMsg_);
-            NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
+        SetN2kPGN130316(N2kMsg_, sid_, deviceIndex, TempSource_, TempValue_, N2kDoubleNA);
+        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
+
+        if (TempSource_ == N2kts_OutsideTemperature) {
+            SetN2kPGN130310(N2kMsg_, sid_, N2kDoubleNA, TempValue_);
+            NMEA2000.SendMsg(N2kMsg_, deviceIndex);
         }
-        sensor_ = (Sensor*)sensor_->getNext();
+
+        if (TempSource_ == N2kts_SeaTemperature) {
+            SetN2kPGN130310(N2kMsg_, sid_, TempValue_, N2kDoubleNA);
+            NMEA2000.SendMsg(N2kMsg_, deviceIndex);
+        }
+
+        NMEA2000.SendProductInformation(deviceIndex);
+        NMEA2000.SendConfigurationInformation(deviceIndex);
     }
 }
 
-void SendAlarmText() {
-    Sensor* sensor_ = &Sensor1;
-    while (sensor_ != nullptr) {
-        if (sensor_->isActive() && sensor_->AlarmTextScheduler.IsTime()) {
+void SendAlert(Sensor* sensor, uint8_t deviceIndex) {
+    if (sensor->isActive() && sensor->AlarmScheduler.IsTime()) {
+        sensor->AlarmScheduler.UpdateNextTime();
 
-            sensor_->AlarmTextScheduler.UpdateNextTime();
+        tN2kMsg N2kMsg_;
 
-            tN2kMsg N2kMsg_;
+        sensor->FaultAlert.SetN2kAlert(N2kMsg_);
+        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
 
-            sensor_->FaultAlert.SetN2kAlertText(N2kMsg_);
-            NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
-
-            sensor_->Alert.SetN2kAlertText(N2kMsg_);
-            NMEA2000.SendMsg(N2kMsg_, AlarmDevice);
-
-        }
-        sensor_ = (Sensor*)sensor_->getNext();
+        sensor->Alert.SetN2kAlert(N2kMsg_);
+        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
     }
 }
 
+void SendAlertText(Sensor* sensor, uint8_t deviceIndex) {
+    if (sensor->isActive() && sensor->AlarmTextScheduler.IsTime()) {
 
-void SendTemperatur(uint8_t SID, uint8_t TempInstance) {
-    tN2kMsg N2kMsg_;
+        sensor->AlarmTextScheduler.UpdateNextTime();
 
-    Sensor* sensor_ = &Sensor1;
-    uint8_t index_ = TempInstance;
+        tN2kMsg N2kMsg_;
 
-    while (sensor_ != nullptr) {
-        if (sensor_->isActive() && sensor_->TemperatureScheduler.IsTime()) {
-            sensor_->TemperatureScheduler.UpdateNextTime();
+        sensor->FaultAlert.SetN2kAlertText(N2kMsg_);
+        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
 
-            tN2kTempSource TempSource_ = tN2kTempSource(sensor_->GetSourceId());
-            double TempValue_ = CToKelvin(sensor_->GetSensorValue());
+        sensor->Alert.SetN2kAlertText(N2kMsg_);
+        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
 
-            SetN2kPGN130312(N2kMsg_, SID, index_, TempSource_, TempValue_, N2kDoubleNA);
-            NMEA2000.SendMsg(N2kMsg_, TemperaturDevice);
-
-            SetN2kPGN130316(N2kMsg_, SID, index_, TempSource_, TempValue_, N2kDoubleNA);
-            NMEA2000.SendMsg(N2kMsg_, TemperaturDevice);
-
-            if (TempSource_ == N2kts_OutsideTemperature) {
-                SetN2kPGN130310(N2kMsg_, SID, N2kDoubleNA, TempValue_);
-                NMEA2000.SendMsg(N2kMsg_, TemperaturDevice);
-            }
-
-            if (TempSource_ == N2kts_SeaTemperature) {
-                SetN2kPGN130310(N2kMsg_, SID, TempValue_, N2kDoubleNA);
-                NMEA2000.SendMsg(N2kMsg_, TemperaturDevice);
-            }
-
-        }
-
-        index_++;
-        sensor_ = (Sensor*)sensor_->getNext();
     }
-
 }
 
-void ParseAlertResponse(const tN2kMsg& N2kMsg) {
-    Sensor* sensor_ = &Sensor1;
-    while (sensor_ != nullptr) {
-        if (sensor_->isActive()) {
-            sensor_->Alert.ParseAlertResponse(N2kMsg);
-            sensor_->FaultAlert.ParseAlertResponse(N2kMsg);
-        }
-        sensor_ = (Sensor*)sensor_->getNext();
+void SetInstallationDescription(Sensor* sensor, uint8_t deviceIndex) {
+    if (sensor->isActive()) {
+        NMEA2000.SetInstallationDescription1(sensor->GetLocationValue(), deviceIndex);
     }
 }
 
 void loop() {
     wifiLoop();
 
-    SendTemperatur(gN2KSID, gN2KInstance);
-    SendAlarm();
-    SendAlarmText();
+    Sensor* sensor_ = &Sensor1;
+    uint8_t deviceIndex_ = 0;
+    while (sensor_ != nullptr) {
+        SendTemperatur(sensor_, deviceIndex_);
+        SendAlert(sensor_, deviceIndex_);
+		SendAlertText(sensor_, deviceIndex_);
+        if (gParamsChanged) {
+            SetInstallationDescription(sensor_, deviceIndex_);
+        }
+
+        deviceIndex_++;
+        sensor_ = (Sensor*)sensor_->getNext();
+    }
 
     NMEA2000.ParseMessages();
 
     CheckN2kSourceAddressChange();
+
+    if (gParamsChanged) {
+        gParamsChanged = false;
+	}
 
     // Dummy to empty input buffer to avoid board to stuck with e.g. NMEA Reader
     if (Serial.available()) {
@@ -401,27 +389,26 @@ void loop() {
 }
 
 double GetTemperatur(int Index) {
-    double T;
-    T = sensors.getTempCByIndex(Index);
+    double T_;
+    T_ = sensors.getTempCByIndex(Index);
     //if (T == -127) T = 9.99;
-    return T;
+    return T_;
 }
 
 void loop2(void* parameter) {
     
     for (;;) {   // Endless loop
         sensors.requestTemperatures(); // Send the command to get temperatures
-       
 
-        Sensor* _sensor = &Sensor1;
-        uint8_t _index = 0;
-        while (_sensor != nullptr) {
-            if (_sensor->isActive()) {
-                double d = GetTemperatur(_index);
-                _sensor->SetSensorValue(d);
+        Sensor* sensor_ = &Sensor1;
+        uint8_t index_ = 0;
+        while (sensor_ != nullptr) {
+            if (sensor_->isActive()) {
+                double d = GetTemperatur(index_);
+                sensor_->SetSensorValue(d);
             }
-            _index++;
-            _sensor = (Sensor*)_sensor->getNext();
+            index_++;
+            sensor_ = (Sensor*)sensor_->getNext();
         }
         vTaskDelay(1000);
     }
