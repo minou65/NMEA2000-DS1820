@@ -3,12 +3,7 @@
 #ifndef _WEBHANDLING_h
 #define _WEBHANDLING_h
 
-#if defined(ARDUINO) && ARDUINO >= 100
-	#include "arduino.h"
-#else
-	#include "WProgram.h"
-#endif
-
+#include <Arduino.h>
 #include "common.h"
 
 #include <IotWebConf.h>

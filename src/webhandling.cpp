@@ -1,18 +1,6 @@
 #include <Arduino.h>
 #include <ArduinoOTA.h>
-
-
-#if defined(ESP32)
 #include <WiFi.h>
-// #include <esp_wifi.h>
-#elif defined(ESP8266)
-#include <ESP8266WiFi.h>
-#else
-#error "Unsupported platform"
-#endif
-
-#include <time.h>
-//needed for library
 
 #include "webhandling.h"
 #include "favicon.h"
@@ -22,7 +10,6 @@
 #include <IotWebConfAsyncClass.h>
 #include <IotWebConfAsyncUpdateServer.h>
 #include <IotWebRoot.h>
-#include <vector>
 
 extern void UpdateAlertSystem();
 
@@ -73,10 +60,10 @@ char APModeOfflineValue[STRING_LEN];
 iotwebconf::NumberParameter APModeOfflineParam = iotwebconf::NumberParameter("AP offline mode after (minutes)", "APModeOffline", APModeOfflineValue, NUMBER_LEN, "0", "0..30", "min='0' max='30', step='1'");
 
 void resetAllSensors() {
-    Sensor* sensor = &Sensor1;
-    while (sensor != nullptr) {
-        sensor->resetToDefaults();
-        sensor = sensor->getNext();
+    sensor_* sensor_ = &Sensor1;
+    while (sensor_ != nullptr) {
+        sensor_->resetToDefaults();
+        sensor_ = sensor_->getNext();
     }
 }
 
@@ -124,19 +111,19 @@ void wifiInit() {
     // -- Set up required URL handlers on the web server.
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) { handleRoot(request); });
     server.on("/config", HTTP_ANY, [](AsyncWebServerRequest* request) {
-        auto* asyncWebRequestWrapper = new AsyncWebRequestWrapper(request, 20480);
-        iotWebConf.handleConfig(asyncWebRequestWrapper);
+        auto* asyncWebRequestWrapper_ = new AsyncWebRequestWrapper(request, 20480);
+        iotWebConf.handleConfig(asyncWebRequestWrapper_);
         }
     );
     server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {
-        AsyncWebServerResponse* response = request->beginResponse_P(200, "image/x-icon", favicon_ico, sizeof(favicon_ico));
-        request->send(response);
+        AsyncWebServerResponse* response_ = request->beginResponse_P(200, "image/x-icon", favicon_ico, sizeof(favicon_ico));
+        request->send(response_);
         }
     );
     server.on("/data", HTTP_GET, [](AsyncWebServerRequest* request) { handleData(request); });
     server.onNotFound([](AsyncWebServerRequest* request) {
-        AsyncWebRequestWrapper asyncWebRequestWrapper(request, 1024);
-        iotWebConf.handleNotFound(&asyncWebRequestWrapper);
+        AsyncWebRequestWrapper asyncWebRequestWrapper_(request, 1024);
+        iotWebConf.handleNotFound(&asyncWebRequestWrapper_);
         }
     );
 
@@ -181,14 +168,14 @@ void wifiConnected() {
 void handleData(AsyncWebServerRequest* request) {
 	String json_ = "{";
 	json_ += "\"rssi\":" + String(WiFi.RSSI());
-	Sensor* _sensor = &Sensor1;
-	uint8_t _i = 1;
-	while (_sensor != nullptr) {
-		if (_sensor->isActive()) {
-			json_ += ",\"sensor" + String(_i) + "\":" + String(_sensor->GetSensorValue(), 2);
+	Sensor* sensor_ = &Sensor1;
+	uint8_t i_ = 1;
+	while (sensor_ != nullptr) {
+		if (sensor_->isActive()) {
+			json_ += ",\"sensor" + String(i_) + "\":" + String(sensor_->GetSensorValue(), 2);
 		}
-		_sensor = (Sensor*)_sensor->getNext();
-		_i++;
+		sensor_ = (Sensor*)sensor_->getNext();
+		i_++;
 	}
 	json_ += "}";
 	request->send(200, "application/json", json_);
@@ -197,23 +184,23 @@ void handleData(AsyncWebServerRequest* request) {
 class MyHtmlRootFormatProvider : public HtmlRootFormatProvider {
 protected:
     virtual String getScriptInner() {
-        String _s = HtmlRootFormatProvider::getScriptInner();
-        _s.replace("{millisecond}", "5000");
-        _s += F("function updateData(jsonData) {\n");
-        _s += F("   document.getElementById('RSSIValue').innerHTML = jsonData.rssi + \"dBm\" \n");
-		Sensor* _sensor = &Sensor1;
-        uint8_t _i = 1;
-        while (_sensor != nullptr) {
-            if (_sensor->isActive()) {
-				_s += "   document.getElementById('sensor" + String(_i) + "').innerHTML = jsonData.sensor" + String(_i) + " + \"&deg;C\" \n";
+        String s_ = HtmlRootFormatProvider::getScriptInner();
+        s_.replace("{millisecond}", "5000");
+        s_ += F("function updateData(jsonData) {\n");
+        s_ += F("   document.getElementById('RSSIValue').innerHTML = jsonData.rssi + \"dBm\" \n");
+		Sensor* sensor_ = &Sensor1;
+        uint8_t i_ = 1;
+        while (sensor_ != nullptr) {
+            if (sensor_->isActive()) {
+				s_ += "   document.getElementById('sensor" + String(i_) + "').innerHTML = jsonData.sensor" + String(i_) + " + \"&deg;C\" \n";
 			}
-			_sensor = (Sensor*)_sensor->getNext();
-			_i++;
+			sensor_ = (Sensor*)sensor_->getNext();
+			i_++;
 		}
 
-        _s += F("}\n");
+        s_ += F("}\n");
         
-        return _s;
+        return s_;
     }
 };
 
@@ -241,14 +228,14 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_->print(fp_.getHtmlFieldset("Temperature"));
     response_->print(fp_.getHtmlTable());
 
-    Sensor* _sensor = &Sensor1;
-    uint8_t _i = 1;
-    while (_sensor != nullptr) {
-        if (_sensor->isActive()) {
-            response_->print(fp_.getHtmlTableRowSpan(String(_sensor->GetSourceName()) + ": ", "no data", "sensor" + String(_i)));
+    Sensor* sensor_ = &Sensor1;
+    uint8_t i_ = 1;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            response_->print(fp_.getHtmlTableRowSpan(String(sensor_->GetSourceName()) + ": ", "no data", "sensor" + String(i_)));
         }
-        _sensor = (Sensor*)_sensor->getNext();
-        _i++;
+        sensor_ = (Sensor*)sensor_->getNext();
+        i_++;
     }
 
     response_->print(fp_.getHtmlTableEnd());

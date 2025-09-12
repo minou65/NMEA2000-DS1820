@@ -16,7 +16,6 @@
 #include <Arduino.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#include <esp_task_wdt.h>
 #include <esp_mac.h>
 #include <Preferences.h>
 
@@ -24,10 +23,8 @@
 #include <NMEA2000_CAN.h>
 #include <N2kMessages.h>
 
-
 #include "webhandling.h"
 #include "version.h"
-#include "neotimer.h"
 
 char Version[] = VERSION_STR; // Manufacturer's Software version code
 
@@ -74,15 +71,15 @@ const unsigned long TemperaturDeviceMessages[] PROGMEM = {
 };
 
 void OnN2kOpen() {
-    Sensor* _sensor = &Sensor1;
+    Sensor* sensor_ = &Sensor1;
 
-    while (_sensor != nullptr) {
-        if (_sensor->isActive()) {
-            _sensor->AlarmScheduler.UpdateNextTime();
-            _sensor->AlarmTextScheduler.UpdateNextTime();
-            _sensor->TemperatureScheduler.UpdateNextTime();
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            sensor_->AlarmScheduler.UpdateNextTime();
+            sensor_->AlarmTextScheduler.UpdateNextTime();
+            sensor_->TemperatureScheduler.UpdateNextTime();
         }
-        _sensor = (Sensor*)_sensor->getNext();
+        sensor_ = (Sensor*)sensor_->getNext();
     }
 }
 
