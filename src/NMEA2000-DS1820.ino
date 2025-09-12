@@ -46,17 +46,17 @@ DallasTemperature sensors(&oneWire);
 
 int8_t gDeviceCount = 1;
 
-//void ParseAlertResponse(const tN2kMsg& N2kMsg);
+void ParseAlertResponse(const tN2kMsg& N2kMsg);
 
 typedef struct {
     unsigned long PGN;
     void (*Handler)(const tN2kMsg& N2kMsg);
 } tNMEA2000Handler;
 
-//tNMEA2000Handler NMEA2000Handlers[] = {
-//    {126984L, ParseAlertResponse},
-//    {0,0}
-//};
+tNMEA2000Handler NMEA2000Handlers[] = {
+    {126984L, ParseAlertResponse},
+    {0,0}
+};
 
 const unsigned long ReciveMessages[] PROGMEM = {
     126984L,
@@ -86,8 +86,13 @@ void OnN2kOpen() {
     }
 }
 
-void handleN2kMessages(const tN2kMsg& N2kMsg) {
-    uint16_t handlerIndex_ = 0;
+void handleN2kMessages(const tN2kMsg& N2kMsg_) {
+    for (uint8_t i_ = 0; NMEA2000Handlers[i_].PGN != 0; i_++) {
+        if (N2kMsg_.PGN == NMEA2000Handlers[i_].PGN) {
+            NMEA2000Handlers[i_].Handler(N2kMsg_);
+            break;
+        }
+    }
 }
 
 void CheckN2kSourceAddressChange() {
@@ -164,7 +169,6 @@ void setup() {
 
     NMEA2000.SetOnOpen(OnN2kOpen);
     NMEA2000.SetMsgHandler(handleN2kMessages);
-
 
 #ifdef DEBUG_NMEA_MSG
     Serial.begin(115200);
@@ -354,6 +358,17 @@ void SendAlertText(Sensor* sensor, uint8_t deviceIndex) {
 void SetInstallationDescription(Sensor* sensor, uint8_t deviceIndex) {
     if (sensor->isActive()) {
         NMEA2000.SetInstallationDescription1(sensor->GetLocationValue(), deviceIndex);
+    }
+}
+
+void ParseAlertResponse(const tN2kMsg& N2kMsg) {
+    Sensor* sensor_ = &Sensor1;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            sensor_->Alert.ParseAlertResponse(N2kMsg);
+            sensor_->FaultAlert.ParseAlertResponse(N2kMsg);
+        }
+        sensor_ = (Sensor*)sensor_->getNext();
     }
 }
 
