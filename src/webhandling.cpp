@@ -60,7 +60,7 @@ char APModeOfflineValue[STRING_LEN];
 iotwebconf::NumberParameter APModeOfflineParam = iotwebconf::NumberParameter("AP offline mode after (minutes)", "APModeOffline", APModeOfflineValue, NUMBER_LEN, "0", "0..30", "min='0' max='30', step='1'");
 
 void resetAllSensors() {
-    sensor_* sensor_ = &Sensor1;
+    Sensor* sensor_ = &Sensor1;
     while (sensor_ != nullptr) {
         sensor_->resetToDefaults();
         sensor_ = sensor_->getNext();

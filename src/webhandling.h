@@ -103,7 +103,7 @@ public:
             (char*)TempSourceNames,
             sizeof(TempSourceValues) / sizeof(TempSourceValues[0]),
             sizeof(TempSourceNames[0]), 
-            "0"),
+            "99"),
         _ThresholdParam("Threshold (&deg;C)", _thresholdId, _thresholdValue, NUMBER_LEN, "0", "0..200", "min='0' max='200' step='1'"),
         _MethodParam(
             "Method", 
