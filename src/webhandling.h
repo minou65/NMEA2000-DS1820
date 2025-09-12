@@ -70,7 +70,7 @@ static char TempSourceNames[][27] PROGMEM = {
 const char wifiInitialApPassword[] PROGMEM = "123456789";
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
-#define CONFIG_VERSION "B1"
+#define CONFIG_VERSION "B2"
 
 // -- When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 //      password to buld an AP. (E.g. in case of lost password)
@@ -98,6 +98,7 @@ public:
         : ParameterGroup(id, name),
         _value(9.99),
         _next(nullptr),
+        _LocationParam("Location", _locationId, _locationValue, STRING_LEN, "Location"),
         _SourceParam(
             "Source", 
             _sourceId, 
@@ -151,8 +152,10 @@ public:
         snprintf(_thresholdId, STRING_LEN, "%s-threshold", this->getId());
         snprintf(_methodId, STRING_LEN, "%s-method", this->getId());
         snprintf(_descriptionId, STRING_LEN, "%s-description", this->getId());
+        snprintf(_locationId, STRING_LEN, "%s-location", this->getId());
         snprintf(_silenceId, STRING_LEN, "%s-silence", this->getId());
 
+        addItem(&_LocationParam);
         addItem(&_SourceParam);
         addItem(&_ThresholdParam);
         addItem(&_MethodParam);
@@ -192,6 +195,8 @@ public:
     uint32_t GetThresholdValue() const { return static_cast<uint32_t>(atoi(_thresholdValue)); }
     uint16_t GetTemporarySilenceTime() const { return static_cast<uint16_t>(atoi(_silenceValue)); }
     const char* GetDescriptionValue() const { return _descriptionValue; }
+    const char* GetLocationValue() const { return _locationValue; }
+    void SetLocationValue(const char* location) { strncpy(_locationValue, location, STRING_LEN); _locationValue[STRING_LEN-1] = '\0'; }
 
     void resetToDefaults() {
         _value = 9.99;
@@ -199,6 +204,7 @@ public:
         _ThresholdParam.applyDefaultValue();
         _MethodParam.applyDefaultValue();
         _DescriptionParam.applyDefaultValue();
+        _LocationParam.applyDefaultValue();
         _TemporarySilenceParam.applyDefaultValue();
     }
 
@@ -216,18 +222,21 @@ private:
     char _thresholdId[STRING_LEN];
     char _methodId[STRING_LEN];
     char _descriptionId[STRING_LEN];
+    char _locationId[STRING_LEN];
     char _silenceId[STRING_LEN];
 
     char _sourceValue[3]{};
     char _thresholdValue[NUMBER_LEN]{};
     char _methodValue[3]{};
     char _descriptionValue[STRING_LEN]{};
+    char _locationValue[STRING_LEN]{};
     char _silenceValue[STRING_LEN]{};
 
     iotwebconf::SelectParameter _SourceParam;
     iotwebconf::NumberParameter _ThresholdParam;
     iotwebconf::SelectParameter _MethodParam;
     iotwebconf::TextParameter _DescriptionParam;
+    iotwebconf::TextParameter _LocationParam;
     iotwebconf::NumberParameter _TemporarySilenceParam;
 
     double _value;
@@ -239,52 +248,27 @@ public:
     NMEAConfig()
         : ParameterGroup("nmeaconfig", "NMEA configuration"),
         _InstanceParam("Instance", _instanceID, _InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'"),
-        _SIDParam("SID", _sidID, _SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'"),
-        _SourceParam("N2kSource", _sourceID, _SourceValue, NUMBER_LEN, "22"),
-        _SourceAlertParam("N2kSourceAlert", _sourceIDAlert, _SourceAlertValue, NUMBER_LEN, "23")
+        _SIDParam("SID", _sidID, _SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'")
     {
         snprintf(_instanceID, STRING_LEN, "%s-instance", this->getId());
         snprintf(_sidID, STRING_LEN, "%s-sid", this->getId());
-        snprintf(_sourceID, STRING_LEN, "%s-n2ksource", this->getId());
-        snprintf(_sourceIDAlert, STRING_LEN, "%s-sourceAlert", this->getId());
 
         this->addItem(&_InstanceParam);
         this->addItem(&_SIDParam);
-        this->addItem(&_SourceParam);
-        _SourceParam.visible = false;
-        this->addItem(&_SourceAlertParam);
-        _SourceAlertParam.visible = false;
     }
 
     uint8_t GetInstance() const { return static_cast<uint8_t>(atoi(_InstanceValue)); }
     uint8_t GetSID() const { return static_cast<uint8_t>(atoi(_SIDValue)); }
-    uint8_t GetSource() const { return static_cast<uint8_t>(atoi(_SourceValue)); }
-    uint8_t GetSourceAlert() const { return static_cast<uint8_t>(atoi(_SourceAlertValue)); }
-
-    void SetSource(uint8_t source) {
-        String s = String(source);
-        strncpy(_SourceParam.valueBuffer, s.c_str(), NUMBER_LEN);
-    }
-    void SetSourceAlert(uint8_t source) {
-        String s = String(source);
-        strncpy(_SourceAlertParam.valueBuffer, s.c_str(), NUMBER_LEN);
-    }
 
 private:
     char _instanceID[STRING_LEN];
     char _sidID[STRING_LEN];
-    char _sourceID[STRING_LEN];
-    char _sourceIDAlert[STRING_LEN];
 
     char _InstanceValue[NUMBER_LEN]{};
     char _SIDValue[NUMBER_LEN]{};
-    char _SourceValue[NUMBER_LEN]{};
-    char _SourceAlertValue[NUMBER_LEN]{};
 
     iotwebconf::NumberParameter _InstanceParam;
     iotwebconf::NumberParameter _SIDParam;
-    iotwebconf::NumberParameter _SourceParam;
-    iotwebconf::NumberParameter _SourceAlertParam;
 };
 
 extern Sensor Sensor1;
