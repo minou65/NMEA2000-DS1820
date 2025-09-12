@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <ArduinoOTA.h>
+
+
 #if defined(ESP32)
 #include <WiFi.h>
 // #include <esp_wifi.h>
@@ -122,7 +124,7 @@ void wifiInit() {
     // -- Set up required URL handlers on the web server.
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) { handleRoot(request); });
     server.on("/config", HTTP_ANY, [](AsyncWebServerRequest* request) {
-        auto* asyncWebRequestWrapper = new AsyncWebRequestWrapper(request);
+        auto* asyncWebRequestWrapper = new AsyncWebRequestWrapper(request, 20480);
         iotWebConf.handleConfig(asyncWebRequestWrapper);
         }
     );
@@ -133,7 +135,7 @@ void wifiInit() {
     );
     server.on("/data", HTTP_GET, [](AsyncWebServerRequest* request) { handleData(request); });
     server.onNotFound([](AsyncWebServerRequest* request) {
-        AsyncWebRequestWrapper asyncWebRequestWrapper(request);
+        AsyncWebRequestWrapper asyncWebRequestWrapper(request, 1024);
         iotWebConf.handleNotFound(&asyncWebRequestWrapper);
         }
     );
@@ -154,9 +156,6 @@ void wifiLoop() {
     
     if (gSaveParams) {
         Serial.println(F("Parameters are changed,save them"));
-
-        Config.SetSource(gN2KSource[TemperaturDevice]);
-        Config.SetSourceAlert(gN2KSource[AlarmDevice]);
 
         iotWebConf.saveConfig();
         gSaveParams = false;
@@ -279,12 +278,7 @@ void convertParams() {
     gN2KInstance = Config.GetInstance();
     gN2KSID = Config.GetSID();
 
-    gN2KSource[TemperaturDevice] = Config.GetSource();
-    gN2KSource[AlarmDevice] = Config.GetSourceAlert();
-
     APModeOfflineTime = atoi(APModeOfflineValue);
-
-    UpdateAlertSystem();
 
     ArduinoOTA.setHostname(iotWebConf.getThingName());
 }
