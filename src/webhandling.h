@@ -6,11 +6,17 @@
 #include <Arduino.h>
 #include "common.h"
 
-#include <IotWebConf.h>
+#include <IotWebConfAsync.h>
 #include <IotWebConfOptionalGroup.h>
 #include <N2kTimer.h>
 #include <N2kAlerts.h>
 #include <WebSerial.h>
+
+#include <ArduinoOTA.h>
+#include <WiFi.h>
+#include <DNSServer.h>
+#include <IotWebConfAsyncUpdateServer.h>
+#include <IotWebRoot.h>
 
 
 #define STRING_LEN 64
@@ -85,7 +91,7 @@ const char wifiInitialApPassword[] PROGMEM = "123456789";
 extern void wifiInit();
 extern void wifiLoop();
 
-extern IotWebConf iotWebConf;
+extern AsyncIotWebConf iotWebConf;
 
 class Sensor : public iotwebconf::ParameterGroup {
 public:
