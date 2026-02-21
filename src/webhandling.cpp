@@ -110,16 +110,25 @@ void wifiInit() {
 
     // -- Set up required URL handlers on the web server.
     server.on("/", HTTP_GET, [](AsyncWebServerRequest* request) { handleRoot(request); });
+
     server.on("/config", HTTP_ANY, [](AsyncWebServerRequest* request) {
         auto* asyncWebRequestWrapper_ = new AsyncWebRequestWrapper(request);
         iotWebConf.handleConfig(asyncWebRequestWrapper_);
         }
     );
+
     server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {
         AsyncWebServerResponse* response_ = request->beginResponse_P(200, "image/x-icon", favicon_ico, sizeof(favicon_ico));
         request->send(response_);
         }
     );
+
+    server.on("/apple-touch-icon.png", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse* response = request->beginResponse_P(200, "image/png", favicon_ico, sizeof(favicon_ico));
+        request->send(response);
+        }
+    );
+
     server.on("/data", HTTP_GET, [](AsyncWebServerRequest* request) { handleData(request); });
     server.onNotFound([](AsyncWebServerRequest* request) {
         AsyncWebRequestWrapper asyncWebRequestWrapper_(request);
@@ -214,6 +223,10 @@ void handleRoot(AsyncWebServerRequest* request) {
     MyHtmlRootFormatProvider fp_;
 
     response_->print(fp_.getHtmlHead(iotWebConf.getThingName()));
+    
+    response_ += F("<link rel=\"icon\" type=\"image/png\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n");
+    response_ += F("<link rel=\"apple-touch-icon\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n");
+
     response_->print(fp_.getHtmlStyle());
     response_->print(fp_.getHtmlHeadEnd());
     response_->print(fp_.getHtmlScript());
