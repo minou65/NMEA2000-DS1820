@@ -224,8 +224,8 @@ void handleRoot(AsyncWebServerRequest* request) {
 
     response_->print(fp_.getHtmlHead(iotWebConf.getThingName()));
     
-    response_ += F("<link rel=\"icon\" type=\"image/png\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n");
-    response_ += F("<link rel=\"apple-touch-icon\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n");
+    response_->print(F("<link rel=\"icon\" type=\"image/png\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n"));
+    response_->print(F("<link rel=\"apple-touch-icon\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n"));
 
     response_->print(fp_.getHtmlStyle());
     response_->print(fp_.getHtmlHeadEnd());
