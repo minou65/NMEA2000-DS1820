@@ -267,7 +267,8 @@ void CreateDevicesForActiveSensors() {
             );
             sensor_->Alert.SetAlertDataSource(gN2KInstance + instance_, 0, source_);
             sensor_->Alert.SetAlertThreshold(
-                t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
+				// We need to subtract 1 from the method, because the AlertThresholdMethod enum starts with 0 = Equal, but our config starts with 1 = Equal
+                t2kNAlertThresholdMethod(sensor_->GetThresholdMethod() - 1), 0, sensor_->GetThresholdValue());
             sensor_->Alert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
 
             // --- FaultAlert-Device für diesen Sensor anlegen (gleiche Adresse/Device wie Sensor) ---
@@ -375,11 +376,14 @@ void loop() {
     Sensor* sensor_ = &Sensor1;
     uint8_t deviceIndex_ = 0;
     while (sensor_ != nullptr) {
-        SendTemperatur(sensor_, deviceIndex_);
-        SendAlert(sensor_, deviceIndex_);
-		SendAlertText(sensor_, deviceIndex_);
-        if (gParamsChanged) {
-            SetInstallationDescription(sensor_, deviceIndex_);
+        if ((sensor_->GetThresholdMethod() > 0) && (sensor_->GetSourceId() > 0)) {
+			//Serial.printf("Sensor %u: %s = %.2f °C\n", deviceIndex_, sensor_->GetDescriptionValue(), sensor_->GetSensorValue());
+            SendTemperatur(sensor_, deviceIndex_);
+            SendAlert(sensor_, deviceIndex_);
+            SendAlertText(sensor_, deviceIndex_);
+            if (gParamsChanged) {
+                SetInstallationDescription(sensor_, deviceIndex_);
+            }
         }
 
         deviceIndex_++;
