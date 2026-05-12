@@ -18,10 +18,12 @@
 static char ThresholdMethodValues[][3] PROGMEM = {
     "0",
     "1",
-    "2"
+    "2",
+    "4"
 };
 
 static char ThresholdMethodNames[][14] PROGMEM = {
+	"disabled",
     "equal",
     "lower than",
     "greater than"
