@@ -118,9 +118,9 @@ public:
             "2"),
         _DescriptionParam("Alert Description", _descriptionId, _descriptionValue, STRING_LEN, "Alert"),
         _TemporarySilenceParam("Temporary silence time (minutes)", _silenceId, _silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'"),
-        AlarmScheduler(false, 500, 100),
-        AlarmTextScheduler(false, 10000, 2000),
-        TemperatureScheduler(false, 2000, 500),
+        TemperatureScheduler(false, 2000, random(0, 100)),
+        AlarmScheduler(false, 500, random(0, 200)),
+        AlarmTextScheduler(false, 10000, random(0, 300)),
         Alert(
             N2kts_AlertTypeCaution,
             N2kts_AlertCategoryTechnical,
