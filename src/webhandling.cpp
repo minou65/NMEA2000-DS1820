@@ -245,7 +245,7 @@ void handleRoot(AsyncWebServerRequest* request) {
     uint8_t i_ = 1;
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
-            response_->print(fp_.getHtmlTableRowSpan(String(sensor_->GetSourceName()) + ": ", "no data", "sensor" + String(i_)));
+            response_->print(fp_.getHtmlTableRowSpan(String(sensor_->GetLocationValue()) + ": ", "no data", "sensor" + String(i_)));
         }
         sensor_ = (Sensor*)sensor_->getNext();
         i_++;
