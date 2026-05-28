@@ -1,4 +1,4 @@
-// pin out https://www.usinainfo.com.br/blog/wp-content/uploads/2019/04/esp32_pinout-1.jpg
+ï»¿// pin out https://www.usinainfo.com.br/blog/wp-content/uploads/2019/04/esp32_pinout-1.jpg
 // NMEA http://www.interfacebus.com/NMEA-2000_Standard.html#:~:text=NMEA-2000%20Pin%20Out%20The%20pin%20out%20for%20the,as%20is%20the%20signal%20pair%20%5Bblue%20%2F%20white%5D.
 
 // use the following Pins
@@ -217,6 +217,12 @@ void CreateDevicesForActiveSensors() {
             uint8_t source_ = gN2KSource[deviceIndex_];
             uint8_t sid_ = gN2KSID + deviceIndex_;
             uint64_t deviceId_ = getDeviceUID(deviceIndex_);
+            uint64_t ackNetworkId_ = deviceId_;
+
+            // Basisinstanz fÃ¼r dieses Sensorâ€‘Device
+            uint8_t deviceInstance_ = gN2KInstance + deviceIndex_ * 3;
+            uint8_t alertInstance_ = deviceInstance_ + 1;
+            uint8_t faultAlertInstance_ = deviceInstance_ + 2;
 
             // Register the device with NMEA2000
             NMEA2000.SetN2kSource(source_, deviceIndex_);
@@ -253,40 +259,39 @@ void CreateDevicesForActiveSensors() {
 				deviceIndex_ // Device instance
 			);
 
-			uint8_t instance_ = gN2KInstance + deviceIndex_;
+			Serial.printf("Created sensor device %u with source %u, SID %u, instance %u and DeviceID %llu\n", deviceIndex_, source_, sid_, deviceInstance_, deviceId_);
 
-			// each Alert-Device must have a unique instance number
-            
-            // --- Alert-Device für diesen Sensor anlegen (gleiche Adresse/Device wie Sensor) ---
-			instance_++;
+            // Alert-Device
             sensor_->Alert.SetAlertSystem(
-                instance_,
-                gN2KInstance + instance_,
-                source_, // gleiche Adresse wie Sensor
+                alertInstance_,
+                deviceInstance_,
+                ackNetworkId_,
                 N2kts_AlertLanguageEnglishUS,
                 const_cast<char*>(sensor_->GetDescriptionValue()),
                 const_cast<char*>(sensor_->GetSourceName())
             );
-            sensor_->Alert.SetAlertDataSource(gN2KInstance + instance_, 0, source_);
+
+            sensor_->Alert.SetAlertDataSource(alertInstance_, 0, deviceId_);
             sensor_->Alert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
             sensor_->Alert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
 
-            // --- FaultAlert-Device für diesen Sensor anlegen (gleiche Adresse/Device wie Sensor) ---
-			instance_++;
+			Serial.printf("Alert system set for sensor %u with instance %u, subsystem %u and ackNetworkId %llu\n", deviceIndex_, alertInstance_, deviceInstance_, ackNetworkId_);
+
+            // Fault-Alert-Device
             String faultDescription_ = String(sensor_->GetDescriptionValue()) + " DS1820 faulty or not connected";
             sensor_->FaultAlert.SetAlertSystem(
-                instance_,
-                gN2KInstance + instance_,
-                source_, // gleiche Adresse wie Sensor
+                faultAlertInstance_,
+                deviceInstance_,
+                ackNetworkId_,
                 N2kts_AlertLanguageEnglishUS,
                 const_cast<char*>(faultDescription_.c_str()),
                 const_cast<char*>(sensor_->GetSourceName())
             );
-            sensor_->FaultAlert.SetAlertDataSource(gN2KInstance + instance_, 0, source_);
-            sensor_->FaultAlert.SetAlertThreshold(
-                t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
+            sensor_->FaultAlert.SetAlertDataSource(faultAlertInstance_, 0, ackNetworkId_);
+            sensor_->FaultAlert.SetAlertThreshold(N2kts_AlertThresholdMethodEqual, 0, (uint64_t)(int64_t)-127);
             sensor_->FaultAlert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
 
+			Serial.printf("Fault alert system set for sensor %u with instance %u, subsystem %u and ackNetworkId %llu\n", deviceIndex_, faultAlertInstance_, deviceInstance_, ackNetworkId_);
             deviceIndex_++;
         }
         sensor_ = (Sensor*)sensor_->getNext();
