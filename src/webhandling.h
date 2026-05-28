@@ -118,9 +118,9 @@ public:
             "2"),
         _DescriptionParam("Alert Description", _descriptionId, _descriptionValue, STRING_LEN, "Alert"),
         _TemporarySilenceParam("Temporary silence time (minutes)", _silenceId, _silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'"),
-        TemperatureScheduler(false, 2000, random(0, 100)),
-        AlarmScheduler(false, 500, random(0, 200)),
-        AlarmTextScheduler(false, 10000, random(0, 300)),
+        TemperatureScheduler(false, 2000, random(0, 2000)),
+        AlarmScheduler(false, 500, random(0, 500)),
+        AlarmTextScheduler(false, 10000, random(0, 10000)),
         Alert(
             N2kts_AlertTypeCaution,
             N2kts_AlertCategoryTechnical,
@@ -243,8 +243,8 @@ class NMEAConfig : public iotwebconf::ParameterGroup {
 public:
     NMEAConfig()
         : ParameterGroup("nmeaconfig", "NMEA configuration"),
-        _InstanceParam("Instance", _instanceID, _InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='254' step='1'"),
-        _SIDParam("SID", _sidID, _SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='255' step='1'")
+        _InstanceParam("Instance", _instanceID, _InstanceValue, NUMBER_LEN, "255", "1..255", "min='1' max='242' step='1'"),
+        _SIDParam("SID", _sidID, _SIDValue, NUMBER_LEN, "255", "1..255", "min='1' max='250' step='1'")
     {
         snprintf(_instanceID, STRING_LEN, "%s-instance", this->getId());
         snprintf(_sidID, STRING_LEN, "%s-sid", this->getId());
