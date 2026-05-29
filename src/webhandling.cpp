@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ArduinoOTA.h>
+#include <Preferences.h>
 #include <WiFi.h>
 
 #include "webhandling.h"
@@ -10,6 +11,7 @@
 #include <IotWebConfAsync.h>
 #include <IotWebConfAsyncUpdateServer.h>
 #include <IotWebRoot.h>
+#include <RebootManager.h>
 
 extern void UpdateAlertSystem();
 
@@ -142,6 +144,8 @@ void wifiInit() {
         APModeTimer.start(APModeOfflineTime * 60 * 1000);
     }
 
+    RebootManager::load();
+
     Serial.println("Ready.");
 }
 
@@ -250,9 +254,17 @@ void handleRoot(AsyncWebServerRequest* request) {
         sensor_ = (Sensor*)sensor_->getNext();
         i_++;
     }
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
+
+    response_->print(fp_.getHtmlFieldset("System status"));
+    response_->print(fp_.getHtmlTable());
+    response_->print(fp_.getHtmlTableRowSpan("Number of reboots:", String(RebootManager::getRebootCount()), "rebootCount"));
+    response_->print(fp_.getHtmlTableRowSpan("Last reboot reason:", RebootManager::getLastRebootReasonText(), "rebootReason"));
 
     response_->print(fp_.getHtmlTableEnd());
     response_->print(fp_.getHtmlFieldsetEnd());
+
     response_->print(fp_.getHtmlFieldset("Network"));
     response_->print(fp_.getHtmlTable());
     response_->print(fp_.getHtmlTableRowText("MAC Address:", WiFi.macAddress()));
