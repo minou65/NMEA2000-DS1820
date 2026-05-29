@@ -12,9 +12,11 @@
 #include <IotWebConfAsyncUpdateServer.h>
 #include <IotWebRoot.h>
 #include <RebootManager.h>
+#include <N2kAlertTypes.h>
 
 extern void UpdateAlertSystem();
-
+extern const char* N2kEnumAlertTypeToStr(tN2kAlertType enumVal);
+extern const char* N2kEnumAlertTypeToStr(tN2kAlertState enumVal);
 
 // -- Initial name of the Thing. Used e.g. as SSID of the own Access Point.
 const char thingName[] = "NMEA-DS1820";
@@ -223,14 +225,12 @@ void handleRoot(AsyncWebServerRequest* request) {
         return;
     }
 
-    AsyncResponseStream* response_ = request->beginResponseStream("text/html", 512);
+    AsyncResponseStream* response_ = request->beginResponseStream("text/html", 1024);
     MyHtmlRootFormatProvider fp_;
 
     response_->print(fp_.getHtmlHead(iotWebConf.getThingName()));
-    
     response_->print(F("<link rel=\"icon\" type=\"image/png\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n"));
     response_->print(F("<link rel=\"apple-touch-icon\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n"));
-
     response_->print(fp_.getHtmlStyle());
     response_->print(fp_.getHtmlHeadEnd());
     response_->print(fp_.getHtmlScript());
@@ -242,11 +242,54 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_->print(F("<tr><td align=\"left\"> </td></td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr>\n"));
     response_->print(fp_.getHtmlTableEnd());
     response_->print(fp_.getHtmlFieldsetEnd());
+
+    // Pending Alerts Section
+    // Pending Alerts Section
+    response_->print(fp_.getHtmlFieldset("Pending Alerts"));
+    response_->print(fp_.getHtmlTable());
+
+    bool hasAlerts = false;
+    Sensor* sensor_ = &Sensor1;
+    uint8_t i_ = 1;
+
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            // Check for regular alert
+            if (sensor_->Alert.isAlert()) {
+                response_->print(fp_.getHtmlTableRowText(
+                    String("Sensor ") + String(i_) + " Alert:",
+                    String(N2kEnumAlertTypeToStr(sensor_->Alert.GetAlertType())) + " - " +
+                    String(N2kEnumAlertTypeToStr(sensor_->Alert.GetAlertState()))
+                ));
+                hasAlerts = true;
+            }
+
+            // Check for fault alert
+            if (sensor_->FaultAlert.isAlert()) {
+                response_->print(fp_.getHtmlTableRowText(
+                    String("Sensor ") + String(i_) + " Fault:",
+                    String(N2kEnumAlertTypeToStr(sensor_->FaultAlert.GetAlertType())) + " - " +
+                    String(N2kEnumAlertTypeToStr(sensor_->FaultAlert.GetAlertState()))
+                ));
+                hasAlerts = true;
+            }
+        }
+        sensor_ = (Sensor*)sensor_->getNext();
+        i_++;
+    }
+
+    if (!hasAlerts) {
+        response_->print(fp_.getHtmlTableRowText("Status:", "No pending alerts"));
+    }
+
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
+
     response_->print(fp_.getHtmlFieldset("Temperature"));
     response_->print(fp_.getHtmlTable());
 
-    Sensor* sensor_ = &Sensor1;
-    uint8_t i_ = 1;
+    sensor_ = &Sensor1;
+    i_ = 1;
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
             response_->print(fp_.getHtmlTableRowSpan(String(sensor_->GetLocationValue()) + ": ", "no data", "sensor" + String(i_)));
@@ -261,7 +304,6 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_->print(fp_.getHtmlTable());
     response_->print(fp_.getHtmlTableRowSpan("Number of reboots:", String(RebootManager::getRebootCount()), "rebootCount"));
     response_->print(fp_.getHtmlTableRowSpan("Last reboot reason:", RebootManager::getLastRebootReasonText(), "rebootReason"));
-
     response_->print(fp_.getHtmlTableEnd());
     response_->print(fp_.getHtmlFieldsetEnd());
 
