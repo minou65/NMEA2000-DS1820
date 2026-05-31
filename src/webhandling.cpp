@@ -146,8 +146,6 @@ void wifiInit() {
         APModeTimer.start(APModeOfflineTime * 60 * 1000);
     }
 
-    RebootManager::load();
-
     Serial.println("Ready.");
 }
 
@@ -243,7 +241,6 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_->print(fp_.getHtmlTableEnd());
     response_->print(fp_.getHtmlFieldsetEnd());
 
-    // Pending Alerts Section
     // Pending Alerts Section
     response_->print(fp_.getHtmlFieldset("Pending Alerts"));
     response_->print(fp_.getHtmlTable());
