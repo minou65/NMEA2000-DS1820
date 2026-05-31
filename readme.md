@@ -22,7 +22,7 @@
 			- [SID](#sid)
 		- [Sensor](#sensor)
 			- [Source](#source)
-			- [Threshold (°C)](#threshold-c)
+			- [Threshold (C)](#threshold-c)
 			- [Method](#method)
 			- [Alert Description](#alert-description)
 			- [Temporary silence time (minutes)](#temporary-silence-time-minutes)
@@ -34,19 +34,21 @@
 
 ## Description
 
-A temperature sensor system that can accommodate up to 4 DS1820 sensors. Each sensor can be configured to measure temperature from -50°C (-58°F) up to 125°C (257°F). You can select the temperature source for each sensor (e.g., alternator, shaft seal, oil filter), and an alarm threshold can be set to trigger predefined alarms when the temperature exceeds the threshold. The system communicates via the NMEA 2000 protocol, sending temperature values and alarms as NMEA 2000 messages over an NMEA bus. Configuration is done through a web interface, and real-time values can be viewed on a website. Additionally, there's a link on the configuration page for convenient firmware updates.
+A temperature sensor system that can accommodate up to 4 DS1820 sensors. Each sensor can be configured to measure temperature from -50 C (-58 F) up to 125 C (257 F). You can select the temperature source for each sensor (for example alternator, shaft seal, oil filter), and an alarm threshold can be set to trigger predefined alarms when the temperature exceeds the threshold.
+
+The system communicates via NMEA 2000, sending temperature values and alerts over the NMEA bus. Configuration is done through a web interface, and real-time values can be viewed on the web page. The configuration page also provides a firmware update entry.
 
 ## Features
 
 - Supports up to 4 DS1820 temperature sensors
-- Temperature range: -50°C to 125°C (-58°F to 257°F)
+- Temperature range: -50 C to 125 C (-58 F to 257 F)
 - NMEA 2000 compliant messaging
 - Web-based configuration interface
 - Real-time monitoring via web interface
-- Configurable temperature alarms
+- Configurable temperature and fault alerts
 - WiFi connectivity with access point fallback
 - Over-the-air firmware updates
-- Low power consumption monitoring
+- Reboot diagnostics (counter and reset reason)
 - Visual status indication via LED
 
 ## Schema
@@ -57,36 +59,34 @@ A temperature sensor system that can accommodate up to 4 DS1820 sensors. Each se
 
 Depending on the temperature source, one of the following PGNs are sent:
 
-- 130310, // Environmental Parameters - DEPRECATED
-- 130312, // Temperature - DEPRECATED
-- 130316, // Temperature, Extended Range
+- 130310, Environmental Parameters (deprecated)
+- 130312, Temperature (deprecated)
+- 130316, Temperature, Extended Range
 
 The device is also capable of sending alerts. In this case these PGNs are used:
 
-- 126983, // Alert
-- 126985, // Alert text
+- 126983, Alert
+- 126985, Alert text
 
-and it will recive the PGN
+The device receives:
 
-- 126984, // Alert response
+- 126984, Alert response
 
 ## Libraries
 
-The Software has been created using Visual Studio with the addon Visual Micro. In order to build it you also need some libraries:
+The software has been created using Visual Studio with the Visual Micro add-on. To build it, you also need these libraries:
 
 - [OneWire (2.3.7)](https://github.com/PaulStoffregen/OneWire)
-- [DallasTemperature(3.9.0)](https://github.com/milesburton/Arduino-Temperature-Control-Library)
+- [DallasTemperature (3.9.0)](https://github.com/milesburton/Arduino-Temperature-Control-Library)
 - [NMEA2000](https://github.com/ttlappalainen/NMEA2000)
-- [NMEA200_ESP32](https://github.com/ttlappalainen/NMEA2000_esp32)
+- [NMEA2000_esp32](https://github.com/ttlappalainen/NMEA2000_esp32)
 - [NMEA2000_AlertMessages](https://github.com/minou65/NMEA2000-AlertMessages)
-- [AsyncTCP (3.2.6) *](https://github.com/ESP32Async/AsyncTCP)
-- [ESPAsyncWebServer (3.3.12) *](https://github.com/ESP32Async/ESPAsyncWebServer)
-- [Webserial (2.0.7) *](https://github.com/ayushsharma82/WebSerial)
+- [AsyncTCP (3.2.6)](https://github.com/ESP32Async/AsyncTCP)
+- [ESPAsyncWebServer (3.3.12)](https://github.com/ESP32Async/ESPAsyncWebServer)
+- [WebSerial (2.0.7)](https://github.com/ayushsharma82/WebSerial)
 - [IotWebConf](https://github.com/minou65/IotWebConf)
-- [IotWebConfAsync (1.0.2) *](https://github.com/minou65/IotWebConfAsync)
+- [IotWebConfAsync (1.0.2)](https://github.com/minou65/IotWebConfAsync)
 - [IotWebRoot](https://github.com/minou65/IotWebRoot)
-
-\* new version and/or new repo
 
 ## Part list
 
@@ -96,7 +96,7 @@ The Software has been created using Visual Studio with the addon Visual Micro. I
 | ESP1 | ESP32DEVKITV1 | [ebay](https://www.ebay.ch/itm/204191675506?var=504772734176) |
 | IC1 | R-78E05-1.0 | Reichelt |
 | IC2 | INA226 | [ebay](https://www.ebay.ch/itm/314750066199) |
-| IC3 | MCP2562 | Reichelt oder [ebay](https://www.ebay.ch/itm/364610349378) |
+| IC3 | MCP2562 | Reichelt or [ebay](https://www.ebay.ch/itm/364610349378) |
 | R1 | 4.7k | Reichelt |
 | X1 | 2 x AKL 057-02 | Reichelt |
 | X2 - X4 | PSS 254/3G | Reichelt |
@@ -116,11 +116,11 @@ These items are marked with __*__ (star) in the list below.
 
 #### Thing name
 
-Please change the name of the device to a name you think describes it the most. It is advised to incorporate a location here in case you are planning to set up multiple devices in the same area. You should only use english letters, and the "_" underscore character. Thus, must not use Space, dots, etc. E.g. `main_cabin` __*__
+Please change the name of the device to a name that describes it well. It is advised to include a location if you plan to set up multiple devices in the same area. Use only English letters and underscore (`_`), for example `main_cabin`. __*__
 
 #### AP password
 
-This password is used, when you want to access the device later on. You must provide a password with at least 8, at most 32 characters. You are free to use any characters, further more you are encouraged to pick a password at least 12 characters long containing at least 3 character classes. __*__
+This password is used when you want to access the device later on. Provide a password with at least 8 and at most 32 characters. A password with at least 12 characters and multiple character classes is recommended. __*__
 
 #### WiFi SSID
 
@@ -128,21 +128,29 @@ The name of the WiFi network you want the device to connect to. __*__
 
 #### WiFi password
 
-The password of the network above. Note, that unsecured passwords are not supported in your protection. __*__
+The password of the WiFi network above. __*__
 
 #### AP offline mode after (minutes)
 
-If you don't plan to connect the sensor to a WiFi network, you don't need to configure the two options above. If you want to disable the WiFi after a certain time, you can use this option. Specify how long the WiFi should remain enabled after turning on the sensor. Valid values are from 0 to 30 minutes. A value of 0 means that WiFi is always enabled.
+If you do not plan to connect the sensor to a WiFi network, you do not need to configure WiFi SSID and WiFi password. You can also disable AP mode after a certain time. Valid values are from 0 to 30 minutes. A value of 0 means WiFi stays enabled.
 
 ### NMEA 2000 Settings
 
 #### Instance
 
-This should be unique at least on one device. May be best to have it unique over all devices sending this PGN. Depending on the number of sensors connected, between 1 and 4 instances are used, starting with the number set here. __*__
+This should be unique at least on one device. May be best to have it unique across all devices sending these PGNs.
+
+The configured value is the base instance for each active sensor. For every active sensor, three consecutive instances are used internally:
+
+- Sensor device instance: `base + (sensorIndex * 3)`
+- Alert instance: `sensor instance + 1`
+- Fault-alert instance: `sensor instance + 2`
+
+`sensorIndex` starts at 0 for the first active sensor. Valid range in the web UI is 1..242. __*__
 
 #### SID
 
-Sequence identifier. In most cases you can use just 255 for SID. The sequence identifier field is used to tie different PGNs data together to same sampling or calculation time.
+Sequence identifier. In most cases you can use a fixed value. Valid range in the web UI is 1..250. The sequence identifier field is used to tie different PGN data together to the same sampling or calculation time.
 
 ### Sensor
 
@@ -152,6 +160,7 @@ Depending on the number of sensors connected, the following settings can be made
 
 One of the following temperature sources can be selected:
 
+- None (sensor disabled)
 - Sea water temperature
 - Outside temperature
 - Inside temperature
@@ -165,51 +174,52 @@ One of the following temperature sources can be selected:
 - Exhaust gas temperature
 - Shaft seal temperature
 
-#### Threshold (°C)
+#### Threshold (C)
 
-Threshold in °C
+Threshold in C.
 
 #### Method
 
 Method with which the threshold value is compared to the current value:
 
+- disabled
 - equal
 - lower than
 - greater than
 
 #### Alert Description
 
-A description for the alarm
+A description for the alarm.
 
 #### Temporary silence time (minutes)
 
-This sensor supports the Temporary silence mode. With this parameter you can set the time how long the alert should be silent.
+This sensor supports temporary silence mode. With this parameter you can set how long the alert should be silent.
 
 ## Default Password
 
-When not connected to an AP the default password is 123456789
+When not connected to an AP, the default password is `123456789`.
 
 ## Default IP address
 
-When in AP mode, the default IP address is 192.168.4.1
+When in AP mode, the default IP address is `192.168.4.1`.
 
 ## Firmware Update
 
-To update the firmware, navigate to the Configuration page and click on the Firmware Update link. Follow the on-screen instructions to complete the update process.
+To update the firmware, navigate to the configuration page and click on the firmware update link. Follow the on-screen instructions to complete the update process.
 
 ## Blinking codes
 
-Previous chapters mentioned blinking patterns, now here is a table that summarizes the meaning of the blink codes.
+The table below summarizes the meaning of the blink codes.
 
 | Blinking Pattern | Meaning |
 | --- | --- |
-| Rapid blinking (mostly on, interrupted by short off periods) | Entered Access Point mode. This means the device creates its own WiFi network. You can connect to the device with your smartphone or WiFi capable computer. |
+| Rapid blinking (mostly on, interrupted by short off periods) | Access Point mode active. The device creates its own WiFi network. |
 | Alternating on/off blinking | Trying to connect to the configured WiFi network. |
 | Mostly off with occasional short flash | The device is online. |
-| Mostly off with occasional long flash | The device is in offline mode |
+| Mostly off with occasional long flash | The device is in offline mode. |
 
 ## Reset
 
-When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial password to build an AP. (E.g. in case of lost password)
+When `CONFIG_PIN` is pulled to ground on startup, the Thing uses the initial password to build an AP (for example in case of a lost password).
 
-Reset pin is GPIO 13
+Reset pin is GPIO 13.
