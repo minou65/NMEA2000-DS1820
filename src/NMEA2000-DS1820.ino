@@ -96,18 +96,30 @@ void handleN2kMessages(const tN2kMsg& N2kMsg_) {
 
 void CheckN2kSourceAddressChange() {
     bool changed_ = false;
-    size_t deviceCount_ = sizeof(gN2KSource) / sizeof(gN2KSource[0]);
-    for (size_t i_ = 0; i_ < deviceCount_; ++i_) {
+
+    // Count active sensors first
+    Sensor* sensor_ = &Sensor1;
+    uint8_t activeDeviceCount_ = 0;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            activeDeviceCount_++;
+        }
+        sensor_ = (Sensor*)sensor_->getNext();
+    }
+
+    // Only check indices that correspond to active devices
+    for (size_t i_ = 0; i_ < activeDeviceCount_; ++i_) {
         uint8_t currentSource_ = NMEA2000.GetN2kSource(i_);
         if (gN2KSource[i_] != currentSource_) {
             gN2KSource[i_] = currentSource_;
             changed_ = true;
         }
     }
+
     if (changed_) {
         Preferences prefs_;
         prefs_.begin("n2k", false); // Namespace "n2k"
-        for (size_t i_ = 0; i_ < deviceCount_; ++i_) {
+        for (size_t i_ = 0; i_ < activeDeviceCount_; ++i_) {
             char key_[16];
             snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
             prefs_.putUChar(key_, gN2KSource[i_]);
