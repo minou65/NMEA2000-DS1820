@@ -389,17 +389,19 @@ void loop() {
     Sensor* sensor_ = &Sensor1;
     uint8_t deviceIndex_ = 0;
     while (sensor_ != nullptr) {
-        SendTemperatur(sensor_, deviceIndex_);
-        if (gParamsChanged) {
-            SetInstallationDescription(sensor_, deviceIndex_);
-        }
+        if (sensor_->isActive()) {
+            SendTemperatur(sensor_, deviceIndex_);
+            if (gParamsChanged) {
+                SetInstallationDescription(sensor_, deviceIndex_);
+            }
 
-        if ((sensor_->GetThresholdMethod() > 0) && (sensor_->GetSourceId() > 0)) {
-            SendAlert(sensor_, deviceIndex_);
-            SendAlertText(sensor_, deviceIndex_);
-        }
+            if ((sensor_->GetThresholdMethod() > 0) && (sensor_->GetSourceId() > 0)) {
+                SendAlert(sensor_, deviceIndex_);
+                SendAlertText(sensor_, deviceIndex_);
+            }
 
-        deviceIndex_++;
+            deviceIndex_++;
+        }
         sensor_ = (Sensor*)sensor_->getNext();
     }
 
