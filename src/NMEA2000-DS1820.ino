@@ -97,6 +97,10 @@ void handleN2kMessages(const tN2kMsg& N2kMsg_) {
 void CheckN2kSourceAddressChange() {
     bool changed_ = false;
 
+    if (!NMEA2000.ReadResetAddressChanged()) {
+        return;
+    }
+
     // Count active sensors first
     Sensor* sensor_ = &Sensor1;
     uint8_t activeDeviceCount_ = 0;
@@ -107,22 +111,25 @@ void CheckN2kSourceAddressChange() {
         sensor_ = (Sensor*)sensor_->getNext();
     }
 
-    // Only check indices that correspond to active devices
+    // Check each device index for address changes
     for (size_t i_ = 0; i_ < activeDeviceCount_; ++i_) {
         uint8_t currentSource_ = NMEA2000.GetN2kSource(i_);
         if (gN2KSource[i_] != currentSource_) {
+            Serial.printf("Device %u address changed from %u to %u\n", (unsigned)i_, gN2KSource[i_], currentSource_);
             gN2KSource[i_] = currentSource_;
             changed_ = true;
         }
     }
 
+    // Save to Preferences only if something actually changed
     if (changed_) {
         Preferences prefs_;
-        prefs_.begin("n2k", false); // Namespace "n2k"
+        prefs_.begin("n2k", false); // Namespace "n2k", read-write
         for (size_t i_ = 0; i_ < activeDeviceCount_; ++i_) {
             char key_[16];
             snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
             prefs_.putUChar(key_, gN2KSource[i_]);
+            Serial.printf("Saved N2KSource%u = %u to Preferences\n", (unsigned)i_, gN2KSource[i_]);
         }
         prefs_.end();
     }
