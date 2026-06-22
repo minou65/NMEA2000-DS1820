@@ -1,10 +1,64 @@
 ﻿// pin out https://www.usinainfo.com.br/blog/wp-content/uploads/2019/04/esp32_pinout-1.jpg
 // NMEA http://www.interfacebus.com/NMEA-2000_Standard.html#:~:text=NMEA-2000%20Pin%20Out%20The%20pin%20out%20for%20the,as%20is%20the%20signal%20pair%20%5Bblue%20%2F%20white%5D.
 
-// use the following Pins
-#define ESP32_CAN_TX_PIN GPIO_NUM_5  // Set CAN TX port to D5 
-#define ESP32_CAN_RX_PIN GPIO_NUM_4  // Set CAN RX port to D4
-#define ONE_WIRE_BUS GPIO_NUM_22 // Set data wire
+// ============================================================================
+// BOARD CONFIGURATION
+// ============================================================================
+// Select your target board by uncommenting ONE of the following definitions:
+// - Uncomment the board you are using
+// - Leave all others commented out
+// ============================================================================
+
+#define BOARD_WEMOS_D1_MINI_ESP32       // Wemos D1 Mini ESP32
+// #define BOARD_NODE32S                // NodeMCU-32S
+// #define BOARD_ESP32_DEVKIT           // ESP32 DevKit V1
+// #define BOARD_CUSTOM                 // Custom board (define pins below)
+
+
+#if defined(BOARD_WEMOS_D1_MINI_ESP32)
+    // ----------------------------------------------------
+    // Wemos D1 Mini ESP32 Pin Configuration
+    // ----------------------------------------------------
+#define ESP32_CAN_TX_PIN GPIO_NUM_23    // CAN Bus TX Pin
+#define ESP32_CAN_RX_PIN GPIO_NUM_5     // CAN Bus RX Pin
+#define ONE_WIRE_BUS     GPIO_NUM_36    // DS18B20 OneWire Data Pin
+
+#define BOARD_NAME "Wemos D1 Mini ESP32"
+#define BOARD_INFO "Standard Wemos D1 Mini ESP32 configuration"
+
+#define DISABLE_BROWNOUT_DETECTOR
+
+#elif defined(BOARD_NODE32S)
+    // ----------------------------------------------------
+    // NodeMCU-32S Pin Configuration
+    // ----------------------------------------------------
+#define ESP32_CAN_TX_PIN GPIO_NUM_5     // CAN Bus TX Pin
+#define ESP32_CAN_RX_PIN GPIO_NUM_4     // CAN Bus RX Pin
+#define ONE_WIRE_BUS     GPIO_NUM_22    // DS18B20 OneWire Data Pin
+
+#define BOARD_NAME "NodeMCU-32S"
+#define BOARD_INFO "NodeMCU-32S standard configuration"
+#elif defined(BOARD_CUSTOM)
+    // ----------------------------------------------------
+    // Custom Board Pin Configuration
+    // ----------------------------------------------------
+    // Define your custom pin assignments here
+#define ESP32_CAN_TX_PIN GPIO_NUM_17    // CAN Bus TX Pin (customize)
+#define ESP32_CAN_RX_PIN GPIO_NUM_16    // CAN Bus RX Pin (customize)
+#define ONE_WIRE_BUS     GPIO_NUM_25    // DS18B20 OneWire Data Pin (customize)
+
+#define BOARD_NAME "Custom ESP32 Board"
+#define BOARD_INFO "User-defined custom pin configuration"
+
+#else
+    // ----------------------------------------------------
+    // No Board Selected - Compilation Error
+    // ----------------------------------------------------
+#error "ERROR: No valid board configuration selected! Please uncomment ONE board definition at the top of this file."
+#error "Available options: BOARD_WEMOS_D1_MINI_ESP32, BOARD_NODE32S, BOARD_ESP32_DEVKIT, BOARD_CUSTOM"
+
+#endif
+
 
 // #define DEBUG_NMEA_MSG // Uncomment to see, what device will send to bus. Use e.g. OpenSkipper or Actisense NMEA Reader  
 // #define DEBUG_NMEA_MSG_ASCII // If you want to use simple ascii monitor like Arduino Serial Monitor, uncomment this line
@@ -142,6 +196,14 @@ void setup() {
         delay(1);
     }
     Serial.printf("Firmware version:%s\n", Version);
+	Serial.println(BOARD_INFO);
+
+#ifdef DISABLE_BROWNOUT_DETECTOR
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+    Serial.println("Brownout detector disabled via build flag");
+#endif
 
     RebootManager::begin();
     Serial.printf("Reboot count: %d\n", RebootManager::getRebootCount());
