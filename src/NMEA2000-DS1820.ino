@@ -615,6 +615,11 @@ void loop() {
         gParamsChanged = false;
 	}
 
+    if (TimeSet && (millis() - LastTimeUpdate > 3600000)) {
+        Serial.println("Warning: No time update received for 1 hour");
+        TimeSet = false;
+    }
+
     // Dummy to empty input buffer to avoid board to stuck with e.g. NMEA Reader
     if (Serial.available()) {
         Serial.read();
