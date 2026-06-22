@@ -305,7 +305,7 @@ void setup() {
     Serial.println("NMEA2000 DS1820 Sensor");
     Serial.println("========================================");
     Serial.printf("Firmware version: %s\n", Version);
-    Serial.println("Sensor type: Resistive (240-33 Ohm)");
+    Serial.println("Sensor type: DS18B20 Temperature Sensor");
     Serial.printf("Sensor pin: GPIO_%d\n", ONE_WIRE_BUS);
     Serial.println("========================================\n");
 
