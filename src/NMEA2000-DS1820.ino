@@ -73,6 +73,8 @@
 #include <esp_mac.h>
 #include <esp_task_wdt.h>
 #include <Preferences.h>
+#include <time.h>
+#include <sys/time.h>
 
 #include <N2kAlertTypes.h>
 #include <NMEA2000_CAN.h>
@@ -81,6 +83,8 @@
 
 #include "webhandling.h"
 #include "version.h"
+
+bool debugMode = false;
 
 char Version[] = VERSION_STR; // Manufacturer's Software version code
 
@@ -100,6 +104,8 @@ DallasTemperature sensors(&oneWire);
 int8_t gDeviceCount = 1;
 
 void ParseAlertResponse(const tN2kMsg& N2kMsg);
+void ParseN2kSystemTime(const tN2kMsg& N2kMsg);
+void ParseN2kGNSS(const tN2kMsg& N2kMsg);
 
 typedef struct {
     unsigned long PGN;
@@ -107,12 +113,16 @@ typedef struct {
 } tNMEA2000Handler;
 
 tNMEA2000Handler NMEA2000Handlers[] = {
-    {126984L, ParseAlertResponse},
+	{126984L, ParseAlertResponse},  // Alert
+    {126992L, ParseN2kSystemTime},  // System Time
+    {129029L, ParseN2kGNSS},        // GNSS Position Data
     {0,0}
 };
 
 const unsigned long ReciveMessages[] PROGMEM = {
-    126984L,
+	126984L,    // Alert
+    126992L,    // System Time
+    129029L,    // GNSS Position Data
     0
 };
 
@@ -126,6 +136,100 @@ const unsigned long TemperaturDeviceMessages[] PROGMEM = {
     0 
 };
 
+// ============================================================================
+// TIME SYNCHRONIZATION FUNCTIONS
+// ============================================================================
+bool TimeSet = false;
+unsigned long LastTimeUpdate = 0;
+/**
+ * Set ESP32 system time from NMEA2000 time
+ */
+void SetSystemTime(uint16_t DaysSince1970, double SecondsSinceMidnight) {
+    if (DaysSince1970 == 0xFFFF || SecondsSinceMidnight > 86400) {
+        return;
+    }
+
+    // Update only every 10 minutes (except first time)
+    if (TimeSet && (millis() - LastTimeUpdate < 600000)) {
+        return;
+    }
+
+    time_t timestamp = (DaysSince1970 * 86400UL) + (time_t)SecondsSinceMidnight;
+
+    struct timeval tv;
+    tv.tv_sec = timestamp;
+    tv.tv_usec = 0;
+    settimeofday(&tv, NULL);
+
+    TimeSet = true;
+    LastTimeUpdate = millis();
+
+    char timeStr[64];
+    struct tm* timeinfo = localtime(&timestamp);
+    strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
+    Serial.printf("System time set from NMEA2000: %s UTC\n", timeStr);
+}
+
+/**
+ * Parse PGN 126992 - System Time
+ */
+void ParseN2kSystemTime(const tN2kMsg& N2kMsg) {
+    unsigned char SID;
+    uint16_t SystemDate;
+    double SystemTime;
+    tN2kTimeSource TimeSource;
+
+    if (ParseN2kPGN126992(N2kMsg, SID, SystemDate, SystemTime, TimeSource)) {
+        if (TimeSource == N2ktimes_GPS || TimeSource == N2ktimes_GLONASS) {
+            SetSystemTime(SystemDate, SystemTime);
+
+            if (debugMode) {
+                Serial.printf("Received System Time (PGN 126992): Date=%u, Time=%.1fs, Source=%d\n",
+                    SystemDate, SystemTime, TimeSource);
+            }
+        }
+    }
+}
+
+/**
+ * Parse PGN 129029 - GNSS Position Data (contains time)
+ */
+void ParseN2kGNSS(const tN2kMsg& N2kMsg) {
+    unsigned char SID;
+    uint16_t DaysSince1970;
+    double SecondsSinceMidnight;
+    double Latitude;
+    double Longitude;
+    double Altitude;
+    tN2kGNSStype GNSStype;
+    tN2kGNSSmethod GNSSmethod;
+    unsigned char nSatellites;
+    double HDOP;
+    double PDOP;
+    double GeoidalSeparation;
+    unsigned char nReferenceStations;
+    tN2kGNSStype ReferenceStationType;
+    uint16_t ReferenceSationID;
+    double AgeOfCorrection;
+
+    if (ParseN2kPGN129029(N2kMsg, SID, DaysSince1970, SecondsSinceMidnight,
+        Latitude, Longitude, Altitude, GNSStype, GNSSmethod,
+        nSatellites, HDOP, PDOP, GeoidalSeparation,
+        nReferenceStations, ReferenceStationType,
+        ReferenceSationID, AgeOfCorrection)) {
+
+        SetSystemTime(DaysSince1970, SecondsSinceMidnight);
+
+        if (debugMode) {
+            Serial.printf("Received GNSS Time (PGN 129029): Date=%u, Time=%.1fs, Sats=%u\n",
+                DaysSince1970, SecondsSinceMidnight, nSatellites);
+        }
+    }
+}
+
+// ============================================================================
+// NMEA2000 CALLBACK
+// ============================================================================
 void OnN2kOpen() {
     Sensor* sensor_ = &Sensor1;
 
@@ -195,8 +299,15 @@ void setup() {
     while (!Serial) {
         delay(1);
     }
-    Serial.printf("Firmware version:%s\n", Version);
-	Serial.println(BOARD_INFO);
+
+
+    Serial.println("\n========================================");
+    Serial.println("NMEA2000 DS1820 Sensor");
+    Serial.println("========================================");
+    Serial.printf("Firmware version: %s\n", Version);
+    Serial.println("Sensor type: Resistive (240-33 Ohm)");
+    Serial.printf("Sensor pin: GPIO_%d\n", ONE_WIRE_BUS);
+    Serial.println("========================================\n");
 
 #ifdef DISABLE_BROWNOUT_DETECTOR
 #include "soc/soc.h"
@@ -212,6 +323,7 @@ void setup() {
     randomSeed(esp_random());
 
     // init sensors
+    Serial.println("\nInitializing sensor...");
     sensors.begin(); 
     sensors.setResolution(12);
 
@@ -232,6 +344,7 @@ void setup() {
 	Serial.print("Found "); Serial.print(gDeviceCount); Serial.println(" devices.");
 
     // init wifi
+    Serial.println("\nInitializing WiFi...");
     wifiInit();
 
     // Create GetTemperature task for core 0, loop() runs on core 1
@@ -246,6 +359,7 @@ void setup() {
     );
 
     // Reserve enough buffer for sending all messages. This does not work on small memory devices like Uno or Mega
+    Serial.println("\nSetting up NMEA2000...");
     NMEA2000.SetN2kCANMsgBufSize(10);
     NMEA2000.SetN2kCANReceiveFrameBufSize(250);
     NMEA2000.SetN2kCANSendFrameBufSize(250);
@@ -278,9 +392,16 @@ void setup() {
 
     CreateDevicesForActiveSensors();
 
+    Serial.println("Opening NMEA2000...");
     NMEA2000.Open();
 
     esp_task_wdt_add(NULL);
+
+    Serial.println("\n========================================");
+    Serial.println("NMEA2000 started");
+    Serial.println("Listening for GPS time on NMEA2000 bus");
+    Serial.println("Setup complete");
+    Serial.println("========================================\n");
 }
 
 uint64_t getDeviceUID(uint8_t devId) {
