@@ -421,8 +421,20 @@ void CreateDevicesForActiveSensors() {
     Sensor* sensor_ = &Sensor1;
     uint8_t deviceIndex_ = 0;
 
+    Preferences pref_;
+    pref_.begin("ds1820", true);
+
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
+
+            String maxKey_ = "max_" + String(deviceIndex_);
+            double savedMax_ = pref_.getDouble(maxKey_.c_str(), -273.15);
+            sensor_->ResetMaxTemperature();
+            if (savedMax_ > -273.15) {
+                sensor_->UpdateMaxTemperature(savedMax_);
+            }
+
+
             // Set source address, SID and DeviceID for this sensor
             uint8_t source_ = gN2KSource[deviceIndex_];
             uint8_t sid_ = gN2KSID + deviceIndex_;
@@ -506,6 +518,8 @@ void CreateDevicesForActiveSensors() {
         }
         sensor_ = (Sensor*)sensor_->getNext();
     }
+
+	pref_.end();
 }
 
 void SendTemperatur(Sensor* sensor, uint8_t deviceIndex) {
@@ -643,8 +657,18 @@ void loop2(void* parameter) {
         uint8_t index_ = 0;
         while (sensor_ != nullptr) {
             if (sensor_->isActive()) {
-                double d = GetTemperatur(index_);
-                sensor_->SetSensorValue(d);
+                double d_ = GetTemperatur(index_);
+                sensor_->SetSensorValue(d_);
+
+                if (d_ != -127 && d_ > sensor_->GetMaxTemperature()) {
+                    sensor_->UpdateMaxTemperature(d_);
+
+                    Preferences pref_;
+                    pref_.begin("ds1820", false);
+                    String maxKey = "max_" + String(index_);
+                    pref_.putDouble(maxKey.c_str(), sensor_->GetMaxTemperature());
+                    pref_.end();
+                }
             }
             index_++;
             sensor_ = (Sensor*)sensor_->getNext();

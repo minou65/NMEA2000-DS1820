@@ -204,6 +204,18 @@ public:
         _TemporarySilenceParam.applyDefaultValue();
     }
 
+    double GetMaxTemperature() const { return _maxTemperature; }
+
+    void UpdateMaxTemperature(double temp) {
+        if (temp > _maxTemperature && temp != -127) {  // -127 = Sensor-Fehler
+            _maxTemperature = temp;
+        }
+    }
+
+    void ResetMaxTemperature() {
+        _maxTemperature = -273.15;
+    }
+
     tN2kSyncScheduler AlarmScheduler;
     tN2kSyncScheduler AlarmTextScheduler;
     tN2kSyncScheduler TemperatureScheduler;
@@ -236,6 +248,7 @@ private:
     iotwebconf::NumberParameter _TemporarySilenceParam;
 
     double _value;
+    double _maxTemperature = -273.15;  // Absoluter Nullpunkt als Startwert
 
 };
 

@@ -186,6 +186,7 @@ void handleData(AsyncWebServerRequest* request) {
 	while (sensor_ != nullptr) {
 		if (sensor_->isActive()) {
 			json_ += ",\"sensor" + String(i_) + "\":" + String(sensor_->GetSensorValue(), 2);
+			json_ += ",\"sensor" + String(i_) + "_max\":" + String(sensor_->GetMaxTemperature(), 2);
 		}
 		sensor_ = (Sensor*)sensor_->getNext();
 		i_++;
@@ -205,11 +206,12 @@ protected:
         uint8_t i_ = 1;
         while (sensor_ != nullptr) {
             if (sensor_->isActive()) {
-				s_ += "   document.getElementById('sensor" + String(i_) + "').innerHTML = jsonData.sensor" + String(i_) + " + \"&deg;C\" \n";
-			}
-			sensor_ = (Sensor*)sensor_->getNext();
-			i_++;
-		}
+                s_ += "   document.getElementById('sensor" + String(i_) + "').innerHTML = jsonData.sensor" + String(i_) + " + \"&deg;C\" \n";
+                s_ += "   document.getElementById('sensor" + String(i_) + "_max').innerHTML = jsonData.sensor" + String(i_) + "_max + \"&deg;C\" \n";
+            }
+            sensor_ = (Sensor*)sensor_->getNext();
+            i_++;
+        }
 
         s_ += F("}\n");
         
@@ -290,6 +292,7 @@ void handleRoot(AsyncWebServerRequest* request) {
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
             response_->print(fp_.getHtmlTableRowSpan(String(sensor_->GetLocationValue()) + ": ", "no data", "sensor" + String(i_)));
+			response_->print(fp_.getHtmlTableRowSpan(String(sensor_->GetLocationValue()) + " Max: ", "no data", "sensor" + String(i_)) + "_max");
         }
         sensor_ = (Sensor*)sensor_->getNext();
         i_++;
