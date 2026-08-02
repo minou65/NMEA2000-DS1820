@@ -115,8 +115,6 @@ void wifiInit() {
     iotWebConf.setSystemTabPosition(-1);  // -1 = letzte Position
     iotWebConf.setSystemTabName("System");
 
-    // Parameter Groups zu Tabs hinzufügen - REIHENFOLGE GEÄNDERT!
-    // 1. Sensors Tab (als erstes)
     iotWebConf.addParameterGroup(&Sensor1, "Sensors");
     Sensor1.setNext(&Sensor2);
     iotWebConf.addParameterGroup(&Sensor2, "Sensors");
@@ -127,12 +125,8 @@ void wifiInit() {
     Sensor3.setNext(&Sensor4);
     iotWebConf.addParameterGroup(&Sensor4, "Sensors");
 
-    // 2. NMEA Tab (als zweites)
     iotWebConf.addParameterGroup(&Config, "NMEA");
-    
-    // 3. System Tab kommt automatisch an letzter Stelle (wegen setSystemTabPosition(-1))
 
-    // System Parameter (wird automatisch im System Tab angezeigt)
     iotWebConf.addSystemParameter(&APModeOfflineParam);
 
     // CustomHtmlFormatProvider mit Tabs-Vektor erstellen
@@ -160,15 +154,7 @@ void wifiInit() {
         iotWebConf.handleConfig(asyncWebRequestWrapper_);
         });
 
-    server.on("/favicon.ico", HTTP_GET, [](AsyncWebServerRequest* request) {
-        AsyncWebServerResponse* response_ = request->beginResponse_P(200, "image/x-icon", favicon_ico, sizeof(favicon_ico));
-        request->send(response_);
-        });
-
-    server.on("/apple-touch-icon.png", HTTP_GET, [](AsyncWebServerRequest* request) {
-        AsyncWebServerResponse* response = request->beginResponse_P(200, "image/png", favicon_ico, sizeof(favicon_ico));
-        request->send(response);
-        });
+    IconHandler::registerHandlers(&server, favicon_ico, sizeof(favicon_ico));
 
     server.on("/data", HTTP_GET, [](AsyncWebServerRequest* request) { handleData(request); });
     server.on("/post", HTTP_ANY, [](AsyncWebServerRequest* request) { handlePost(request); });
