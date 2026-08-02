@@ -6,7 +6,7 @@
 #include <Arduino.h>
 #include "common.h"
 
-#include <IotWebConfAsync.h>
+#include <IotWebConfAsyncTab.h>
 #include <IotWebConfOptionalGroup.h>
 #include <N2kTimer.h>
 #include <N2kAlerts.h>
@@ -66,7 +66,7 @@ static char TempSourceNames[][27] PROGMEM = {
 const char wifiInitialApPassword[] PROGMEM = "123456789";
 
 // -- Configuration specific key. The value should be modified if config structure was changed.
-#define CONFIG_VERSION "B2"
+#define CONFIG_VERSION "A7"
 
 // -- When CONFIG_PIN is pulled to ground on startup, the Thing will use the initial
 //      password to buld an AP. (E.g. in case of lost password)
@@ -79,14 +79,10 @@ const char wifiInitialApPassword[] PROGMEM = "123456789";
 
 #define ON_LEVEL HIGH
 
-
-
-
-
 extern void wifiInit();
 extern void wifiLoop();
 
-extern AsyncIotWebConf iotWebConf;
+extern AsyncIotWebConfTab iotWebConf;
 
 class Sensor : public iotwebconf::ParameterGroup {
 public:
@@ -118,7 +114,7 @@ public:
             "2"),
         _DescriptionParam("Alert Description", _descriptionId, _descriptionValue, STRING_LEN, "Alert"),
         _TemporarySilenceParam("Temporary silence time (minutes)", _silenceId, _silenceValue, NUMBER_LEN, "60", "0..300", "min='0' max='300' step='1'"),
-        TemperatureScheduler(false, 2000, random(0, 2000)),
+        TemperatureScheduler(false, 1000, 0),
         AlarmScheduler(false, 500, random(0, 500)),
         AlarmTextScheduler(false, 10000, random(0, 10000)),
         Alert(
@@ -205,15 +201,28 @@ public:
     }
 
     double GetMaxTemperature() const { return _maxTemperature; }
+    time_t GetMaxTemperatureTime() const { return _maxTemperatureTime; }
 
     void UpdateMaxTemperature(double temp) {
         if (temp > _maxTemperature && temp != -127) {  // -127 = Sensor-Fehler
             _maxTemperature = temp;
+            
+            // Nur Zeit setzen, wenn sie gültig ist (nach 1. Januar 2020)
+            time_t currentTime_ = time(nullptr);
+            if (currentTime_ > 1577836800) {  // Unix timestamp für 2020-01-01 00:00:00
+                _maxTemperatureTime = currentTime_;
+            }
         }
+    }
+
+    void SetMaxTemperature(double temp, time_t timestamp) {
+        _maxTemperature = temp;
+        _maxTemperatureTime = timestamp;
     }
 
     void ResetMaxTemperature() {
         _maxTemperature = -273.15;
+        _maxTemperatureTime = 0;
     }
 
     tN2kSyncScheduler AlarmScheduler;
@@ -249,7 +258,7 @@ private:
 
     double _value;
     double _maxTemperature = -273.15;  // Absoluter Nullpunkt als Startwert
-
+    time_t _maxTemperatureTime = 0;    // Zeitstempel des Maximumwerts
 };
 
 class NMEAConfig : public iotwebconf::ParameterGroup {
