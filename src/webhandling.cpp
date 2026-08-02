@@ -27,24 +27,59 @@ Sensor Sensor4 = Sensor("sensor4", "Sensor 4");
 
 NMEAConfig Config = NMEAConfig();
 
-class CustomHtmlFormatProvider : public TabOptionalGroupHtmlFormatProvider {
+const char html_form_end[] PROGMEM = R"=====(
+</br><form action='/reboot' method='get'><button type='submit'>Reboot</button></form>
+</br><form action='/' method='get' style='display:inline;'>
+  <button type='submit'>Home</button>
+  </br>
+</form>
+</br><form action='/post' method='post' style='display:inline;' onsubmit="event.preventDefault(); postReset();">
+  <button type='submit'>Reset to factory defaults</button>
+</form>
+<script>
+function postReset() {
+    fetch('/post', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'reset=true'
+    })
+    .then(response => {
+        if (response.ok) { 
+            window.location.reload(true);  // Hard reload
+        }
+    })
+    .catch(error => {
+        console.error('Reset fehlgeschlagen:', error);
+        alert('Reset fehlgeschlagen!');
+    });
+}
+</script>
+)=====";
+
+class CustomHtmlFormatProvider : public AsyncTabHtmlFormatProvider {
+public:
+    CustomHtmlFormatProvider(std::vector<AsyncTabInfo>* tabs, int minWidth = 500, int maxWidth = 600)
+        : AsyncTabHtmlFormatProvider(tabs, minWidth, maxWidth) {
+    }
+
 protected:
-    virtual String getFormEnd() {
-        String _s = TabOptionalGroupHtmlFormatProvider::getFormEnd();
-        _s += F("</br>Return to <a href='/'>home page</a>.");
-        return _s;
+    String getFormEnd() override {
+        return AsyncTabHtmlFormatProvider::getFormEnd() + String(FPSTR(html_form_end));
     }
 };
-CustomHtmlFormatProvider customHtmlFormatProvider;
+CustomHtmlFormatProvider* customHtmlFormatProvider = nullptr;
 
 void handleData(AsyncWebServerRequest* request);
 void handleRoot(AsyncWebServerRequest* request);
+void handlePost(AsyncWebServerRequest* request);
+void handleReboot(AsyncWebServerRequest* request);
 void convertParams();
 void configSaved();
 void wifiConnected();
 
 bool gParamsChanged = true;
 bool gSaveParams = false;
+bool gShouldReboot = false;
 uint8_t APModeOfflineTime = 0;
 
 DNSServer dnsServer;
@@ -74,16 +109,14 @@ void wifiInit() {
 
     iotWebConf.setStatusPin(STATUS_PIN, ON_LEVEL);
     iotWebConf.setConfigPin(CONFIG_PIN);
-    iotWebConf.setHtmlFormatProvider(&customHtmlFormatProvider);
 
     // === TABS KONFIGURIEREN ===
     // System Tab soll an letzter Stelle sein
     iotWebConf.setSystemTabPosition(-1);  // -1 = letzte Position
     iotWebConf.setSystemTabName("System");
 
-    // Parameter Groups zu Tabs hinzufügen
-    iotWebConf.addParameterGroup(&Config, "NMEA");
-    
+    // Parameter Groups zu Tabs hinzufügen - REIHENFOLGE GEÄNDERT!
+    // 1. Sensors Tab (als erstes)
     iotWebConf.addParameterGroup(&Sensor1, "Sensors");
     Sensor1.setNext(&Sensor2);
     iotWebConf.addParameterGroup(&Sensor2, "Sensors");
@@ -94,8 +127,18 @@ void wifiInit() {
     Sensor3.setNext(&Sensor4);
     iotWebConf.addParameterGroup(&Sensor4, "Sensors");
 
+    // 2. NMEA Tab (als zweites)
+    iotWebConf.addParameterGroup(&Config, "NMEA");
+    
+    // 3. System Tab kommt automatisch an letzter Stelle (wegen setSystemTabPosition(-1))
+
     // System Parameter (wird automatisch im System Tab angezeigt)
     iotWebConf.addSystemParameter(&APModeOfflineParam);
+
+    // CustomHtmlFormatProvider mit Tabs-Vektor erstellen
+    auto customProvider = new CustomHtmlFormatProvider(iotWebConf.getTabsVector());
+    customProvider->setContainerWidth(700, 700);
+    iotWebConf.setHtmlFormatProvider(customProvider);
 
     iotWebConf.setupUpdateServer(
         [](const char* updatePath) { AsyncUpdater.setup(&server, updatePath); },
@@ -128,6 +171,8 @@ void wifiInit() {
         });
 
     server.on("/data", HTTP_GET, [](AsyncWebServerRequest* request) { handleData(request); });
+    server.on("/post", HTTP_ANY, [](AsyncWebServerRequest* request) { handlePost(request); });
+    server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest* request) { handleReboot(request); });
     
     server.onNotFound([](AsyncWebServerRequest* request) {
         AsyncWebRequestWrapper asyncWebRequestWrapper_(request);
@@ -163,6 +208,11 @@ void wifiLoop() {
     
     if (AsyncUpdater.isFinished()) {
         Serial.println(F("Firmware update finished"));
+        gShouldReboot = true;
+    }
+    
+    if (gShouldReboot) {
+        Serial.println(F("Rebooting..."));
         delay(1000);
         ESP.restart();
     }
@@ -357,4 +407,37 @@ void convertParams() {
 void configSaved() {
     convertParams();
     gParamsChanged = true;
+}
+
+void handlePost(AsyncWebServerRequest* request) {
+    if (request->hasParam("reset", true)) {
+        Serial.println(F("Resetting to factory defaults..."));
+
+        Config.applyDefaultValue();
+        resetAllSensors();
+
+        iotWebConf.saveConfig();
+
+        request->send(200, "text/plain", "OK");
+    }
+    else {
+        request->send(400, "text/plain", "Bad Request");
+    }
+}
+
+void handleReboot(AsyncWebServerRequest* request) {
+    AsyncWebServerResponse* response_ = request->beginResponse(200, "text/html",
+        "<html>"
+        "<head>"
+        "<meta http-equiv=\"refresh\" content=\"15; url=/\">"
+        "<title>Rebooting...</title>"
+        "</head>"
+        "<body>"
+        "Please wait while the device is rebooting...<br>"
+        "You will be redirected to the homepage shortly."
+        "</body>"
+        "</html>");
+    request->client()->setNoDelay(true); // Disable Nagle's algorithm so the client gets the response immediately
+    request->send(response_);
+    gShouldReboot = true;
 }
