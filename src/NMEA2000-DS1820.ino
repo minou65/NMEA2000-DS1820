@@ -1,4 +1,4 @@
-﻿// pin out https://www.usinainfo.com.br/blog/wp-content/uploads/2019/04/esp32_pinout-1.jpg
+// pin out https://www.usinainfo.com.br/blog/wp-content/uploads/2019/04/esp32_pinout-1.jpg
 // NMEA http://www.interfacebus.com/NMEA-2000_Standard.html#:~:text=NMEA-2000%20Pin%20Out%20The%20pin%20out%20for%20the,as%20is%20the%20signal%20pair%20%5Bblue%20%2F%20white%5D.
 
 // ============================================================================
@@ -9,8 +9,8 @@
 // - Leave all others commented out
 // ============================================================================
 
-#define BOARD_WEMOS_D1_MINI_ESP32       // Wemos D1 Mini ESP32
-// #define BOARD_NODE32S                // NodeMCU-32S
+//#define BOARD_WEMOS_D1_MINI_ESP32       // Wemos D1 Mini ESP32
+ #define BOARD_NODE32S                // NodeMCU-32S
 // #define BOARD_ESP32_DEVKIT           // ESP32 DevKit V1
 // #define BOARD_CUSTOM                 // Custom board (define pins below)
 
@@ -231,16 +231,24 @@ void ParseN2kGNSS(const tN2kMsg& N2kMsg) {
 // NMEA2000 CALLBACK
 // ============================================================================
 void OnN2kOpen() {
-    Sensor* sensor_ = &Sensor1;
+    //Serial.println("OnN2kOpen() called - Initializing schedulers...");
+    //
+    //Sensor* sensor_ = &Sensor1;
+    //uint8_t idx_ = 0;
 
-    while (sensor_ != nullptr) {
-        if (sensor_->isActive()) {
-            sensor_->AlarmScheduler.UpdateNextTime();
-            sensor_->AlarmTextScheduler.UpdateNextTime();
-            sensor_->TemperatureScheduler.UpdateNextTime();
-        }
-        sensor_ = (Sensor*)sensor_->getNext();
-    }
+    //while (sensor_ != nullptr) {
+    //    if (sensor_->isActive()) {
+    //        sensor_->AlarmScheduler.UpdateNextTime();
+    //        sensor_->AlarmTextScheduler.UpdateNextTime();
+    //        sensor_->TemperatureScheduler.UpdateNextTime();
+    //        
+    //        Serial.printf("Sensor %u schedulers initialized\n", idx_);
+    //    }
+    //    sensor_ = (Sensor*)sensor_->getNext();
+    //    idx_++;
+    //}
+    //
+    //Serial.println("All schedulers initialized");
 }
 
 void handleN2kMessages(const tN2kMsg& N2kMsg_) {
@@ -428,12 +436,28 @@ void CreateDevicesForActiveSensors() {
         if (sensor_->isActive()) {
 
             String maxKey_ = "max_" + String(deviceIndex_);
+            String timeKey_ = "time_" + String(deviceIndex_);
+            
             double savedMax_ = pref_.getDouble(maxKey_.c_str(), -273.15);
+            time_t savedTime_ = pref_.getULong64(timeKey_.c_str(), 0);
+            
             sensor_->ResetMaxTemperature();
             if (savedMax_ > -273.15) {
-                sensor_->UpdateMaxTemperature(savedMax_);
+                if (savedTime_ > 0) {
+                    sensor_->SetMaxTemperature(savedMax_, savedTime_);
+                    
+                    char timeStr_[64];
+                    struct tm* timeinfo_ = localtime(&savedTime_);
+                    strftime(timeStr_, sizeof(timeStr_), "%Y-%m-%d %H:%M:%S", timeinfo_);
+                    Serial.printf("Loaded max temp %.2f°C from %s for sensor %u\n", 
+                        savedMax_, timeStr_, deviceIndex_);
+                } else {
+                    // Nur Temperatur ohne Zeit laden
+                    sensor_->SetMaxTemperature(savedMax_, 0);
+                    Serial.printf("Loaded max temp %.2f°C (no timestamp) for sensor %u\n", 
+                        savedMax_, deviceIndex_);
+                }
             }
-
 
             // Set source address, SID and DeviceID for this sensor
             uint8_t source_ = gN2KSource[deviceIndex_];
@@ -514,6 +538,12 @@ void CreateDevicesForActiveSensors() {
             sensor_->FaultAlert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
 
 			Serial.printf("Fault alert system set for sensor %u with instance %u, subsystem %u and ackNetworkId %llu\n", deviceIndex_, faultAlertInstance_, deviceInstance_, ackNetworkId_);
+
+            sensor_->AlarmScheduler.UpdateNextTime();
+            sensor_->AlarmTextScheduler.UpdateNextTime();
+            sensor_->TemperatureScheduler.UpdateNextTime();
+            Serial.printf("Initialized schedulers for sensor %u\n", deviceIndex_);
+
             deviceIndex_++;
         }
         sensor_ = (Sensor*)sensor_->getNext();
@@ -523,6 +553,7 @@ void CreateDevicesForActiveSensors() {
 }
 
 void SendTemperatur(Sensor* sensor, uint8_t deviceIndex) {
+    
     if (sensor->isActive() && sensor->TemperatureScheduler.IsTime()) {
         sensor->TemperatureScheduler.UpdateNextTime();
 
@@ -547,8 +578,12 @@ void SendTemperatur(Sensor* sensor, uint8_t deviceIndex) {
             NMEA2000.SendMsg(N2kMsg_, deviceIndex);
         }
 
-        NMEA2000.SendProductInformation(deviceIndex);
-        NMEA2000.SendConfigurationInformation(deviceIndex);
+        static unsigned long lastInfoSent_[4] = {0, 0, 0, 0};
+        if (millis() - lastInfoSent_[deviceIndex] > 60000) {
+            NMEA2000.SendProductInformation(deviceIndex);
+            NMEA2000.SendConfigurationInformation(deviceIndex);
+            lastInfoSent_[deviceIndex] = millis();
+        }
     }
 }
 
@@ -559,26 +594,32 @@ void SendAlert(Sensor* sensor, uint8_t deviceIndex) {
         tN2kMsg N2kMsg_;
 
         sensor->FaultAlert.SetN2kAlert(N2kMsg_);
-        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
+        if (!NMEA2000.SendMsg(N2kMsg_, deviceIndex)) {
+            Serial.printf("Failed to send Fault Alert for device %u\n", deviceIndex);
+        }
 
         sensor->Alert.SetN2kAlert(N2kMsg_);
-        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
+        if (!NMEA2000.SendMsg(N2kMsg_, deviceIndex)) {
+            Serial.printf("Failed to send Alert for device %u\n", deviceIndex);
+        }
     }
 }
 
 void SendAlertText(Sensor* sensor, uint8_t deviceIndex) {
     if (sensor->isActive() && sensor->AlarmTextScheduler.IsTime()) {
-
         sensor->AlarmTextScheduler.UpdateNextTime();
 
         tN2kMsg N2kMsg_;
 
         sensor->FaultAlert.SetN2kAlertText(N2kMsg_);
-        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
+        if (!NMEA2000.SendMsg(N2kMsg_, deviceIndex)) {
+            Serial.printf("Failed to send Fault Alert Text for device %u\n", deviceIndex);
+        }
 
         sensor->Alert.SetN2kAlertText(N2kMsg_);
-        NMEA2000.SendMsg(N2kMsg_, deviceIndex);
-
+        if (!NMEA2000.SendMsg(N2kMsg_, deviceIndex)) {
+            Serial.printf("Failed to send Alert Text for device %u\n", deviceIndex);
+        }
     }
 }
 
@@ -622,19 +663,17 @@ void loop() {
     }
 
     NMEA2000.ParseMessages();
-
     CheckN2kSourceAddressChange();
 
     if (gParamsChanged) {
         gParamsChanged = false;
-	}
+    }
 
     if (TimeSet && (millis() - LastTimeUpdate > 3600000)) {
         Serial.println("Warning: No time update received for 1 hour");
         TimeSet = false;
     }
 
-    // Dummy to empty input buffer to avoid board to stuck with e.g. NMEA Reader
     if (Serial.available()) {
         Serial.read();
     }
@@ -652,28 +691,47 @@ void loop2(void* parameter) {
     esp_task_wdt_add(NULL);
     for (;;) {   // Endless loop
         sensors.requestTemperatures(); // Send the command to get temperatures
-
+        
+        // Wait for conversion to complete (750ms for 12-bit resolution + safety margin)
+        vTaskDelay(1000);
+        
         Sensor* sensor_ = &Sensor1;
         uint8_t index_ = 0;
         while (sensor_ != nullptr) {
             if (sensor_->isActive()) {
                 double d_ = GetTemperatur(index_);
+                double previousMax_ = sensor_->GetMaxTemperature();
                 sensor_->SetSensorValue(d_);
 
-                if (d_ != -127 && d_ > sensor_->GetMaxTemperature()) {
+                if (d_ != -127 && d_ > previousMax_) {
                     sensor_->UpdateMaxTemperature(d_);
 
                     Preferences pref_;
                     pref_.begin("ds1820", false);
-                    String maxKey = "max_" + String(index_);
-                    pref_.putDouble(maxKey.c_str(), sensor_->GetMaxTemperature());
+                    String maxKey_ = "max_" + String(index_);
+                    String timeKey_ = "time_" + String(index_);
+                    pref_.putDouble(maxKey_.c_str(), sensor_->GetMaxTemperature());
+                    
+                    time_t maxTime_ = sensor_->GetMaxTemperatureTime();
+                    if (maxTime_ > 0) {
+                        pref_.putULong64(timeKey_.c_str(), maxTime_);
+                        
+                        char timeStr_[64];
+                        struct tm* timeinfo_ = localtime(&maxTime_);
+                        strftime(timeStr_, sizeof(timeStr_), "%Y-%m-%d %H:%M:%S", timeinfo_);
+                        Serial.printf("New max temp %.2f°C saved for sensor %u at %s\n", 
+                            d_, index_, timeStr_);
+                    } else {
+                        Serial.printf("New max temp %.2f°C saved for sensor %u (no valid time yet)\n", 
+                            d_, index_);
+                    }
+                    
                     pref_.end();
                 }
             }
             index_++;
             sensor_ = (Sensor*)sensor_->getNext();
         }
-        vTaskDelay(1000);
         esp_task_wdt_reset();
     }
 }
