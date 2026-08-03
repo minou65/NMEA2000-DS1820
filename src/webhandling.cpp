@@ -2,6 +2,7 @@
 #include <ArduinoOTA.h>
 #include <Preferences.h>
 #include <WiFi.h>
+#include <esp_task_wdt.h>
 
 #include "webhandling.h"
 #include "favicon.h"
@@ -194,6 +195,14 @@ void wifiLoop() {
     
     if (AsyncUpdater.isFinished()) {
         Serial.println(F("Firmware update finished"));
+        
+        // Watchdog vor Reboot nur deaktivieren, wenn er aktiv ist
+        esp_err_t wdt_status_ = esp_task_wdt_status(NULL);
+        if (wdt_status_ == ESP_OK) {
+            Serial.println(F("Disabling watchdog before reboot"));
+            esp_task_wdt_deinit();
+        }
+        
         gShouldReboot = true;
     }
     
@@ -205,7 +214,90 @@ void wifiLoop() {
 }
 
 void wifiConnected() {
+    // ArduinoOTA konfigurieren
+    ArduinoOTA.setHostname(thingName);
+    
+    // Optional: Passwort setzen (sollte mit IotWebConf-Passwort übereinstimmen)
+    // ArduinoOTA.setPassword("admin");
+    
+    ArduinoOTA.onStart([]() {
+        String type_;
+        if (ArduinoOTA.getCommand() == U_FLASH) {
+            type_ = "sketch";
+        } else {  // U_SPIFFS
+            type_ = "filesystem";
+        }
+        Serial.println("Start updating " + type_);
+        
+        // Watchdog deaktivieren während OTA
+        // Zuerst alle Tasks vom Watchdog abmelden
+        esp_err_t wdt_status_ = esp_task_wdt_status(NULL);
+        if (wdt_status_ == ESP_OK) {
+            // Task vom Watchdog abmelden (aktueller Task = loop Task)
+            esp_task_wdt_delete(NULL);
+            Serial.println("Current task unsubscribed from watchdog");
+        }
+        
+        // Auch loop2 Task vom Watchdog abmelden
+        extern TaskHandle_t TaskHandle;
+        if (TaskHandle != NULL) {
+            esp_err_t loop2_status_ = esp_task_wdt_status(TaskHandle);
+            if (loop2_status_ == ESP_OK) {
+                esp_task_wdt_delete(TaskHandle);
+                Serial.println("loop2 task unsubscribed from watchdog");
+            }
+        }
+        
+        // Jetzt kann der Watchdog sicher deinitialisiert werden
+        esp_task_wdt_deinit();
+        Serial.println("Watchdog disabled for OTA");
+    });
+    
+    ArduinoOTA.onEnd([]() {
+        Serial.println("\nEnd");
+    });
+    
+    ArduinoOTA.onProgress([](unsigned int progress_, unsigned int total_) {
+        Serial.printf("Progress: %u%%\r", (progress_ / (total_ / 100)));
+    });
+    
+    ArduinoOTA.onError([](ota_error_t error_) {
+        Serial.printf("Error[%u]: ", error_);
+        if (error_ == OTA_AUTH_ERROR) {
+            Serial.println("Auth Failed");
+        } else if (error_ == OTA_BEGIN_ERROR) {
+            Serial.println("Begin Failed");
+        } else if (error_ == OTA_CONNECT_ERROR) {
+            Serial.println("Connect Failed");
+        } else if (error_ == OTA_RECEIVE_ERROR) {
+            Serial.println("Receive Failed");
+        } else if (error_ == OTA_END_ERROR) {
+            Serial.println("End Failed");
+        }
+        
+        // Watchdog wieder aktivieren bei Fehler
+        Serial.println("Re-enabling watchdog after error");
+        esp_task_wdt_config_t wdt_config_ = {
+            .timeout_ms = 30000,
+            .idle_core_mask = 0,
+            .trigger_panic = true
+        };
+        esp_task_wdt_init(&wdt_config_);
+        
+        // Aktuelle Tasks wieder anmelden
+        esp_task_wdt_add(NULL);
+        
+        extern TaskHandle_t TaskHandle;
+        if (TaskHandle != NULL) {
+            esp_task_wdt_add(TaskHandle);
+        }
+        Serial.println("Watchdog re-enabled");
+    });
+    
     ArduinoOTA.begin();
+    Serial.println("ArduinoOTA started");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
 }
 
 void handleData(AsyncWebServerRequest* request) {
