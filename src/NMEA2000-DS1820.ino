@@ -281,7 +281,8 @@ void CheckN2kSourceAddressChange() {
     for (size_t i_ = 0; i_ < activeDeviceCount_; ++i_) {
         uint8_t currentSource_ = NMEA2000.GetN2kSource(i_);
         if (gN2KSource[i_] != currentSource_) {
-            Serial.printf("Device %u address changed from %u to %u\n", (unsigned)i_, gN2KSource[i_], currentSource_);
+            Serial.printf("Device %u address changed from %u to %u\n", 
+                (unsigned)i_, gN2KSource[i_], currentSource_);
             gN2KSource[i_] = currentSource_;
             changed_ = true;
         }
@@ -290,12 +291,13 @@ void CheckN2kSourceAddressChange() {
     // Save to Preferences only if something actually changed
     if (changed_) {
         Preferences prefs_;
-        prefs_.begin("n2k", false); // Namespace "n2k", read-write
+        prefs_.begin("n2k", false);
         for (size_t i_ = 0; i_ < activeDeviceCount_; ++i_) {
             char key_[16];
             snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
             prefs_.putUChar(key_, gN2KSource[i_]);
-            Serial.printf("Saved N2KSource%u = %u to Preferences\n", (unsigned)i_, gN2KSource[i_]);
+            Serial.printf("Saved N2KSource%u = %u to Preferences\n", 
+                (unsigned)i_, gN2KSource[i_]);
         }
         prefs_.end();
     }
