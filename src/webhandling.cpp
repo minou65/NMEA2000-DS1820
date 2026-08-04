@@ -301,20 +301,32 @@ void wifiConnected() {
 }
 
 void handleData(AsyncWebServerRequest* request) {
-	String json_ = "{";
-	json_ += "\"rssi\":" + String(WiFi.RSSI());
-	Sensor* sensor_ = &Sensor1;
-	uint8_t i_ = 1;
-	while (sensor_ != nullptr) {
-		if (sensor_->isActive()) {
-			json_ += ",\"sensor" + String(i_) + "\":" + String(sensor_->GetSensorValue(), 2);
-			json_ += ",\"sensor" + String(i_) + "_max\":" + String(sensor_->GetMaxTemperature(), 2);
-		}
-		sensor_ = (Sensor*)sensor_->getNext();
-		i_++;
-	}
-	json_ += "}";
-	request->send(200, "application/json", json_);
+    String json_ = "{";
+    json_ += "\"rssi\":" + String(WiFi.RSSI());
+    Sensor* sensor_ = &Sensor1;
+    uint8_t i_ = 1;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            json_ += ",\"sensor" + String(i_) + "\":" + String(sensor_->GetSensorValue(), 2);
+            json_ += ",\"sensor" + String(i_) + "_max\":" + String(sensor_->GetMaxTemperature(), 2);
+            
+            time_t maxTime_ = sensor_->GetMaxTemperatureTime();
+            if (maxTime_ > 0) {
+                struct tm timeinfo_;
+                localtime_r(&maxTime_, &timeinfo_);
+                char timeStr_[20];
+                strftime(timeStr_, sizeof(timeStr_), "%d.%m.%Y %H:%M", &timeinfo_);
+                json_ += ",\"sensor" + String(i_) + "_max_time\":\"" + String(timeStr_) + "\"";
+            }
+            else {
+                json_ += ",\"sensor" + String(i_) + "_max_time\":\"--\"";
+            }
+        }
+        sensor_ = (Sensor*)sensor_->getNext();
+        i_++;
+    }
+    json_ += "}";
+    request->send(200, "application/json", json_);
 }
 
 class MyHtmlRootFormatProvider : public TabHtmlRootFormatProvider {
@@ -473,12 +485,9 @@ void handleRoot(AsyncWebServerRequest* request) {
 }
 
 void convertParams() {
-
     gN2KInstance = Config.GetInstance();
     gN2KSID = Config.GetSID();
-
     APModeOfflineTime = atoi(APModeOfflineValue);
-
     ArduinoOTA.setHostname(iotWebConf.getThingName());
 }
 
