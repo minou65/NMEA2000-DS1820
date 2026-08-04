@@ -310,7 +310,6 @@ void setup() {
         delay(1);
     }
 
-
     Serial.println("\n========================================");
     Serial.println("NMEA2000 DS1820 Sensor");
     Serial.println("========================================");
@@ -332,6 +331,24 @@ void setup() {
 
     randomSeed(esp_random());
 
+    // ===============================================================
+    // MAC-basierte eindeutige Adressierung (Bereich 20-50)
+    // ===============================================================
+    uint8_t mac_[6];
+    esp_efuse_mac_get_default(mac_);
+    
+    // Verwendet MAC[4] und MAC[5] für maximale Variation im Bereich 20-50
+    uint8_t baseAddress_ = 20 + ((mac_[4] + mac_[5]) % 31);  // Ergibt 20-50
+    
+    Serial.printf("Device MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+        mac_[0], mac_[1], mac_[2], mac_[3], mac_[4], mac_[5]);
+    Serial.printf("Calculated base N2K address: %u (range 20-50, based on MAC[4]+MAC[5])\n", baseAddress_);
+    
+    // MAC-basierter Startup-Delay (0-5100ms)
+    uint32_t randomDelay_ = (mac_[5] * 20);
+    Serial.printf("Startup delay: %lu ms (prevents address collision)\n", randomDelay_);
+    delay(randomDelay_);
+
     // init sensors
     Serial.println("\nInitializing sensor...");
     sensors.begin(); 
@@ -339,17 +356,43 @@ void setup() {
 
     gDeviceCount = sensors.getDeviceCount();
 
-    // Load N2K source addresses from Preferences if available
+    // Load N2K source addresses from Preferences
     Preferences prefs_;
-    prefs_.begin("n2k", true); // read-only
+    prefs_.begin("n2k", false);  // read-write
+    
+    bool prefsChanged_ = false;
     size_t deviceCount_ = sizeof(gN2KSource) / sizeof(gN2KSource[0]);
+    
     for (size_t i_ = 0; i_ < deviceCount_; ++i_) {
         char key_[16];
         snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
-        uint8_t val_ = prefs_.getUChar(key_, gN2KSource[i_]); // fallback: current default
-        gN2KSource[i_] = val_;
+        
+        // Default basierend auf MAC + Index (mit Prüfung auf max 251)
+        uint8_t defaultAddr_ = baseAddress_ + i_;
+        if (defaultAddr_ > 251) {
+            defaultAddr_ = 251;  // NMEA2000 max address
+            Serial.printf("WARNING: Calculated address %u exceeds 251, capping at 251\n", 
+                baseAddress_ + i_);
+        }
+        
+        uint8_t val_ = prefs_.getUChar(key_, 255);  // 255 = nicht gesetzt
+        
+        if (val_ == 255) {
+            // Erste Inbetriebnahme: MAC-basierte Adresse speichern
+            gN2KSource[i_] = defaultAddr_;
+            prefs_.putUChar(key_, defaultAddr_);
+            prefsChanged_ = true;
+            Serial.printf("First boot: Set N2KSource%u = %u (MAC-based)\n", 
+                (unsigned)i_, defaultAddr_);
+        } else {
+            gN2KSource[i_] = val_;
+        }
     }
+    
     prefs_.end();
+    
+    Serial.printf("Using N2K addresses: %u, %u, %u, %u\n", 
+        gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
 
 	Serial.print("Found "); Serial.print(gDeviceCount); Serial.println(" devices.");
 
@@ -385,7 +428,7 @@ void setup() {
     NMEA2000.SetForwardStream(&Serial);
 
 #ifdef DEBUG_NMEA_MSG_ASCII
-    NMEA2000.SetForwardType(tNMEA2000::fwdt_Text)
+    NMEA2000.SetForwardType(tNMEA2000::fwdt_Text);
 #endif // DEBUG_NMEA_MSG_ASCII
 
 #ifdef  DEBUG_NMEA_Actisense
@@ -409,6 +452,8 @@ void setup() {
 
     Serial.println("\n========================================");
     Serial.println("NMEA2000 started");
+    Serial.printf("Base address: %u, Using addresses: %u, %u, %u, %u\n", 
+        baseAddress_, gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
     Serial.println("Listening for GPS time on NMEA2000 bus");
     Serial.println("Setup complete");
     Serial.println("========================================\n");
@@ -427,12 +472,25 @@ uint64_t getDeviceUID(uint8_t devId) {
     return uid_;
 }
 
+// Hilfsfunktion für kurze, eindeutige Device-Namen (vor CreateDevicesForActiveSensors)
+String GetDeviceModelID(uint8_t mac5_) {
+    // Kurzer, eindeutiger Name: "DS1820-XX" wobei XX die letzten 2 MAC-Hex-Digits sind
+    char modelId_[16];
+    snprintf(modelId_, sizeof(modelId_), "DS1820-%02X", mac5_);
+    return String(modelId_);
+}
+
 void CreateDevicesForActiveSensors() {
     Sensor* sensor_ = &Sensor1;
     uint8_t deviceIndex_ = 0;
 
     Preferences pref_;
     pref_.begin("ds1820", true);
+    
+    // MAC für eindeutige Device-Namen
+    uint8_t mac_[6];
+    esp_efuse_mac_get_default(mac_);
+    String deviceModelId_ = GetDeviceModelID(mac_[5]);
 
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
@@ -454,7 +512,6 @@ void CreateDevicesForActiveSensors() {
                     Serial.printf("Loaded max temp %.2f°C from %s for sensor %u\n", 
                         savedMax_, timeStr_, deviceIndex_);
                 } else {
-                    // Nur Temperatur ohne Zeit laden
                     sensor_->SetMaxTemperature(savedMax_, 0);
                     Serial.printf("Loaded max temp %.2f°C (no timestamp) for sensor %u\n", 
                         savedMax_, deviceIndex_);
@@ -487,11 +544,24 @@ void CreateDevicesForActiveSensors() {
 				deviceIndex_  // Device instance
             );
 
-            // Optionally set product information per device
+            // VERBESSERT: Kurzer, eindeutiger Product Name
+            // Format: "DS1820-XX S1" wobei XX=MAC-ID, S1=Sensor-Nummer
+            String productName_ = deviceModelId_ + " S" + String(deviceIndex_ + 1);
+            
+            // Optional: Verwende Sensor-Location als Teil des Namens
+            String sensorLocation_ = String(sensor_->GetLocationValue());
+            if (sensorLocation_.length() > 0 && sensorLocation_ != "undefined") {
+                // Kürze Location falls zu lang (max 32 Zeichen für Model ID)
+                if (sensorLocation_.length() > 20) {
+                    sensorLocation_ = sensorLocation_.substring(0, 17) + "...";
+                }
+                productName_ = sensorLocation_;
+            }
+
             NMEA2000.SetProductInformation(
                 String(deviceId_).c_str(), // Model serial code
-                100,
-                "Multidevice temperatur sensor",
+                100 + deviceIndex_,  // Product Code (eindeutig pro Sensor)
+                productName_.c_str(),  // KURZER, eindeutiger Name
                 Version,
                 Version,
 				1, // Load Equivalency
@@ -500,14 +570,16 @@ void CreateDevicesForActiveSensors() {
 				deviceIndex_ // Device instance
             );
 
+            // Configuration Information mit Sensor-Location
             NMEA2000.SetConfigurationInformation(
-                String(deviceId_).c_str(), // Unique number
+                deviceModelId_.c_str(), // Unique device identifier
                 sensor_->GetLocationValue(),
                 "",
 				deviceIndex_ // Device instance
 			);
 
-			Serial.printf("Created sensor device %u with source %u, SID %u, instance %u and DeviceID %llu\n", deviceIndex_, source_, sid_, deviceInstance_, deviceId_);
+			Serial.printf("Created sensor device %u: '%s' with source %u, SID %u, instance %u\n", 
+                deviceIndex_, productName_.c_str(), source_, sid_, deviceInstance_);
 
             // Alert-Device
             sensor_->Alert.SetAlertSystem(
@@ -523,10 +595,10 @@ void CreateDevicesForActiveSensors() {
             sensor_->Alert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
             sensor_->Alert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
 
-			Serial.printf("Alert system set for sensor %u with instance %u, subsystem %u and ackNetworkId %llu\n", deviceIndex_, alertInstance_, deviceInstance_, ackNetworkId_);
+			Serial.printf("Alert system set for sensor %u with instance %u\n", deviceIndex_, alertInstance_);
 
             // Fault-Alert-Device
-            String faultDescription_ = String(sensor_->GetDescriptionValue()) + " DS1820 faulty or not connected";
+            String faultDescription_ = productName_ + " Fault";
             sensor_->FaultAlert.SetAlertSystem(
                 faultAlertInstance_,
                 deviceInstance_,
@@ -539,7 +611,7 @@ void CreateDevicesForActiveSensors() {
             sensor_->FaultAlert.SetAlertThreshold(N2kts_AlertThresholdMethodEqual, 0, (uint64_t)(int64_t)-127);
             sensor_->FaultAlert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
 
-			Serial.printf("Fault alert system set for sensor %u with instance %u, subsystem %u and ackNetworkId %llu\n", deviceIndex_, faultAlertInstance_, deviceInstance_, ackNetworkId_);
+			Serial.printf("Fault alert system set for sensor %u with instance %u\n", deviceIndex_, faultAlertInstance_);
 
             sensor_->AlarmScheduler.UpdateNextTime();
             sensor_->AlarmTextScheduler.UpdateNextTime();
