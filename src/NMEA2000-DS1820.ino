@@ -332,21 +332,28 @@ void setup() {
     randomSeed(esp_random());
 
     // ===============================================================
-    // MAC-basierte eindeutige Adressierung (Bereich 20-50)
+    // MAC-basierte eindeutige Adressierung (Bereich 20-115)
+    // Unterstützt bis zu 20 Geräte mit je 4 logischen Devices
     // ===============================================================
     uint8_t mac_[6];
     esp_efuse_mac_get_default(mac_);
     
-    // Verwendet MAC[4] und MAC[5] für maximale Variation im Bereich 20-50
-    uint8_t baseAddress_ = 20 + ((mac_[4] + mac_[5]) % 31);  // Ergibt 20-50
+    // Nutze MAC[3], MAC[4], MAC[5] für maximale Streuung
+    uint16_t macSum_ = (uint16_t)mac_[3] + (uint16_t)mac_[4] + (uint16_t)mac_[5];
+    uint8_t macBased_ = macSum_ % 20;  // 0-19 → 20 Slots
+    uint8_t baseAddress_ = 20 + (macBased_ * 5);  // 20, 25, 30, 35, ..., 115
     
     Serial.printf("Device MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", 
         mac_[0], mac_[1], mac_[2], mac_[3], mac_[4], mac_[5]);
-    Serial.printf("Calculated base N2K address: %u (range 20-50, based on MAC[4]+MAC[5])\n", baseAddress_);
+    Serial.printf("MAC sum: %u (0x%02X + 0x%02X + 0x%02X)\n", 
+        macSum_, mac_[3], mac_[4], mac_[5]);
+    Serial.printf("Calculated slot: %u (out of 20 slots)\n", macBased_);
+    Serial.printf("Base N2K address: %u (device addresses: %u-%u)\n", 
+        baseAddress_, baseAddress_, baseAddress_ + 3);
     
-    // MAC-basierter Startup-Delay (0-5100ms)
-    uint32_t randomDelay_ = (mac_[5] * 20);
-    Serial.printf("Startup delay: %lu ms (prevents address collision)\n", randomDelay_);
+    // Startup-Delay: 1 Sekunde pro Slot (max 19 Sekunden)
+    uint32_t randomDelay_ = macBased_ * 1000;
+    Serial.printf("Startup delay: %lu ms (ensures collision-free boot)\n", randomDelay_);
     delay(randomDelay_);
 
     // init sensors
@@ -658,6 +665,9 @@ void SendTemperatur(Sensor* sensor, uint8_t deviceIndex) {
             NMEA2000.SendConfigurationInformation(deviceIndex);
             lastInfoSent_[deviceIndex] = millis();
         }
+
+        Serial.printf("Sent temperature %.2f°C for sensor %u (source %u, sid %u)\n", 
+			sensor->GetSensorValue(), deviceIndex, TempSource_, sid_);
     }
 }
 
