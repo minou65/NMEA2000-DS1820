@@ -159,19 +159,31 @@ public:
     Sensor* getNext() const { return _next; }
 
     void SetSensorValue(double v) {
-        _value = v;
-		Alert.TestAlertThreshold(_value);
-
+        // Fehlerfilterung: -127 ist Sensor-Fehler
         if (v == -127.0) {
-            FaultAlert.SetAlertExceeded();
+            _errorCount++;
+            
+            // Erst nach mehreren aufeinanderfolgenden Fehlern als Fehler behandeln
+            if (_errorCount >= _maxErrorCount) {
+                _value = -127.0;
+                FaultAlert.SetAlertExceeded();
+            } else {
+                // Bei wenigen Fehlern: letzten gültigen Wert beibehalten
+                _value = _lastValidValue;
+            }
         }
         else {
+            // Gültiger Wert: Fehlerzähler zurücksetzen
+            _errorCount = 0;
+            _lastValidValue = v;
+            _value = v;
+            
             FaultAlert.ResetAlert();
             Alert.TestAlertThreshold(_value);
         }
     }
 
-	bool isActive() const { return GetSourceId() != 99; }
+    bool isActive() const { return GetSourceId() != 99; }
 
     double GetSensorValue() const { return _value; }
     uint8_t GetSourceId() const { return static_cast<uint8_t>(atoi(_sourceValue)); }
@@ -256,9 +268,14 @@ private:
     iotwebconf::TextParameter _LocationParam;
     iotwebconf::NumberParameter _TemporarySilenceParam;
 
-    double _value;
+    double _value = -273.15;
     double _maxTemperature = -273.15;  // Absoluter Nullpunkt als Startwert
     time_t _maxTemperatureTime = 0;    // Zeitstempel des Maximumwerts
+    
+    // Fehlererkennung und Filterung
+    double _lastValidValue = -273.15;   // Letzter gültiger Messwert
+    uint8_t _errorCount = 0;            // Anzahl aufeinanderfolgender Fehler
+    static const uint8_t _maxErrorCount = 5;  // Schwellwert für persistenten Fehler
 };
 
 class NMEAConfig : public iotwebconf::ParameterGroup {
