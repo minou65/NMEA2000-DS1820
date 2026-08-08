@@ -312,14 +312,12 @@ void handleData(AsyncWebServerRequest* request) {
             
             time_t maxTime_ = sensor_->GetMaxTemperatureTime();
             if (maxTime_ > 0) {
-                struct tm timeinfo_;
-                localtime_r(&maxTime_, &timeinfo_);
-                char timeStr_[20];
-                strftime(timeStr_, sizeof(timeStr_), "%d.%m.%Y %H:%M", &timeinfo_);
-                json_ += ",\"sensor" + String(i_) + "_max_time\":\"" + String(timeStr_) + "\"";
+                // Sende Unix-Timestamp (Sekunden seit 1970-01-01 UTC)
+                // JavaScript kann diesen in lokale Zeit umrechnen
+                json_ += ",\"sensor" + String(i_) + "_max_time\":" + String((unsigned long)maxTime_);
             }
             else {
-                json_ += ",\"sensor" + String(i_) + "_max_time\":\"--\"";
+                json_ += ",\"sensor" + String(i_) + "_max_time\":null";
             }
         }
         sensor_ = (Sensor*)sensor_->getNext();
@@ -335,6 +333,18 @@ protected:
         String s_ = TabHtmlRootFormatProvider::getScriptInner();
         s_.replace("{millisecond}", "5000");
         
+        // Hilfsfunktion für Zeitformatierung hinzufügen
+        s_ += F("function formatLocalTime(timestamp) {\n");
+        s_ += F("   if (!timestamp || timestamp === 0) return '--';\n");
+        s_ += F("   const date = new Date(timestamp * 1000);\n");  // Unix-Timestamp in Millisekunden
+        s_ += F("   const day = String(date.getDate()).padStart(2, '0');\n");
+        s_ += F("   const month = String(date.getMonth() + 1).padStart(2, '0');\n");
+        s_ += F("   const year = date.getFullYear();\n");
+        s_ += F("   const hours = String(date.getHours()).padStart(2, '0');\n");
+        s_ += F("   const minutes = String(date.getMinutes()).padStart(2, '0');\n");
+        s_ += F("   return day + '.' + month + '.' + year + ' ' + hours + ':' + minutes;\n");
+        s_ += F("}\n");
+        
         s_ += F("function updateData(jsonData) {\n");
         s_ += F("   document.getElementById('RSSIValue').innerHTML = jsonData.rssi + \"dBm\" \n");
         
@@ -343,7 +353,9 @@ protected:
         while (sensor_ != nullptr) {
             if (sensor_->isActive()) {
                 s_ += "   document.getElementById('sensor" + String(i_) + "').innerHTML = jsonData.sensor" + String(i_) + " + \"&deg;C\" \n";
-                s_ += "   document.getElementById('sensor" + String(i_) + "_max').innerHTML = jsonData.sensor" + String(i_) + "_max + \"&deg;C (\" + jsonData.sensor" + String(i_) + "_max_time + \")\" \n";
+ 
+                s_ += "   const time" + String(i_) + " = formatLocalTime(jsonData.sensor" + String(i_) + "_max_time);\n";
+                s_ += "   document.getElementById('sensor" + String(i_) + "_max').innerHTML = jsonData.sensor" + String(i_) + "_max + \"&deg;C (\" + time" + String(i_) + " + \")\" \n";
             }
             sensor_ = (Sensor*)sensor_->getNext();
             i_++;
