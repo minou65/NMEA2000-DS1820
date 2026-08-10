@@ -53,7 +53,7 @@ The system communicates via NMEA 2000, sending temperature values and alerts ove
 
 ## Schema
 
-![Schema](sch/schema.png)
+The hardware is based on the [NMEA2000-SensorBoard](https://github.com/minou65/NMEA2000-SensorBoard).
 
 ## NMEA 2000
 
@@ -90,22 +90,7 @@ The software has been created using Visual Studio with the Visual Micro add-on. 
 
 ## Part list
 
-| Part | Value | Supplier |
-| --- | --- | --- |
-| D1 | 1N4001 | Reichelt |
-| ESP1 | ESP32DEVKITV1 | [ebay](https://www.ebay.ch/itm/204191675506?var=504772734176) |
-| IC1 | R-78E05-1.0 | Reichelt |
-| IC2 | INA226 | [ebay](https://www.ebay.ch/itm/314750066199) |
-| IC3 | MCP2562 | Reichelt or [ebay](https://www.ebay.ch/itm/364610349378) |
-| R1 | 4.7k | Reichelt |
-| X1 | 2 x AKL 057-02 | Reichelt |
-| X2 - X4 | PSS 254/3G | Reichelt |
-
-Some pictures from the assembled hardware:
-
-![Assembled hardware picture 1](img/20230723_085806591_iOS.jpg)
-![Assembled hardware picture 2](img/20230723_085811033_iOS.jpg)
-![Assembled hardware picture 3](img/20230723_085825516_iOS.jpg)
+See the [NMEA2000-SensorBoard](https://github.com/minou65/NMEA2000-SensorBoard) repository for the complete part list and hardware documentation.
 
 ## Configuration
 
