@@ -360,7 +360,7 @@ void handleRoot(AsyncWebServerRequest* request) {
         return;
     }
 
-    AsyncResponseStream* response_ = request->beginResponseStream("text/html", 1024);
+    AsyncResponseStream* response_ = request->beginResponseStream("text/html");
     MyHtmlRootFormatProvider fp_;
 
     // === 3 Tabs erstellen ===
@@ -368,30 +368,40 @@ void handleRoot(AsyncWebServerRequest* request) {
     fp_.addTab("Alerts", "alerts");
     fp_.addTab("System", "system");
 
-    // === TAB 1: Current Values (RSSI + Temperatures) ===
-    String currentTab_ = "";
-    currentTab_ += F("<fieldset align=left style=\"border: 1px solid\"><table border=\"0\" align=\"center\" width=\"100%\">");
-    currentTab_ += F("<tr><td align=\"left\">RSSI:</td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr></table></fieldset>");
-    
-    currentTab_ += fp_.getHtmlFieldset("Current Temperature");
-    currentTab_ += fp_.getHtmlTable();
+    // Header
+    response_->print(fp_.getHtmlHead(iotWebConf.getThingName()));
+    response_->print(fp_.getIconLinks());
+    response_->print(fp_.getHtmlStyle());
+    response_->print(fp_.getHtmlHeadEnd());
+    response_->print(fp_.getHtmlScript());
+    response_->print(fp_.getHtmlTabButtons());
+
+    // === TAB 1: Current Values
+    response_->print(fp_.getHtmlTabContentStart("current"));
+    response_->print(F("<fieldset align=left style=\"border: 1px solid\"><table border=\"0\" align=\"center\" width=\"100%\">"));
+    response_->print(F("<tr><td align=\"left\">RSSI:</td><td align=\"right\"><span id=\"RSSIValue\">no data</span></td></tr></table></fieldset>"));
+
+    response_->print(fp_.getHtmlFieldset("Current Temperature"));
+    response_->print(fp_.getHtmlTable());
+
     Sensor* sensor_ = &Sensor1;
     uint8_t i_ = 1;
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
-            currentTab_ += fp_.getHtmlTableRowSpan(String(sensor_->GetLocationValue()) + ": ", "no data", "sensor" + String(i_));
+            response_->print(fp_.getHtmlTableRowSpan(String(sensor_->GetLocationValue()) + ": ", "no data", "sensor" + String(i_)));
         }
         sensor_ = (Sensor*)sensor_->getNext();
         i_++;
     }
-    currentTab_ += fp_.getHtmlTableEnd();
-    currentTab_ += fp_.getHtmlFieldsetEnd();
-    fp_.addString(currentTab_, "current");
+
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
+    response_->print(fp_.getHtmlTabContentEnd());
 
     // === TAB 2: Alerts ===
-    String alertsTab_ = "";
-    alertsTab_ += fp_.getHtmlFieldset("Pending Alerts");
-    alertsTab_ += fp_.getHtmlTable();
+    response_->print(fp_.getHtmlTabContentStart("alerts"));
+    response_->print(fp_.getHtmlFieldset("Pending Alerts"));
+    response_->print(fp_.getHtmlTable());
 
     bool hasAlerts_ = false;
     sensor_ = &Sensor1;
@@ -399,76 +409,90 @@ void handleRoot(AsyncWebServerRequest* request) {
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
             if (sensor_->Alert.isAlert()) {
-                alertsTab_ += fp_.getHtmlTableRowText(
+                response_->print(fp_.getHtmlTableRowText(
                     String("Sensor ") + String(i_) + " Alert:",
                     String(N2kEnumAlertTypeToStr(sensor_->Alert.GetAlertType())) + " - " +
                     String(N2kEnumAlertTypeToStr(sensor_->Alert.GetAlertState()))
-                );
+                ));
                 hasAlerts_ = true;
             }
             if (sensor_->FaultAlert.isAlert()) {
-                alertsTab_ += fp_.getHtmlTableRowText(
+                response_->print(fp_.getHtmlTableRowText(
                     String("Sensor ") + String(i_) + " Fault:",
                     String(N2kEnumAlertTypeToStr(sensor_->FaultAlert.GetAlertType())) + " - " +
                     String(N2kEnumAlertTypeToStr(sensor_->FaultAlert.GetAlertState()))
-                );
+                ));
                 hasAlerts_ = true;
             }
         }
         sensor_ = (Sensor*)sensor_->getNext();
         i_++;
     }
-    if (!hasAlerts_) {
-        alertsTab_ += fp_.getHtmlTableRowText("Status:", "No pending alerts");
-    }
-    alertsTab_ += fp_.getHtmlTableEnd();
-    alertsTab_ += fp_.getHtmlFieldsetEnd();
-    fp_.addString(alertsTab_, "alerts");
 
-    // === TAB 3: System (Max Values + Network + System Status) ===
-    String systemTab_ = "";
-    
+    if (!hasAlerts_) {
+        response_->print(fp_.getHtmlTableRowText("Status:", "No pending alerts"));
+    }
+
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
+    response_->print(fp_.getHtmlTabContentEnd());
+
+    // === TAB 3: System ===
+    response_->print(fp_.getHtmlTabContentStart("system"));
+
     // Maximum Temperature
-    systemTab_ += fp_.getHtmlFieldset("Maximum Temperature");
-    systemTab_ += fp_.getHtmlTable();
+    response_->print(fp_.getHtmlFieldset("Maximum Temperature"));
+    response_->print(fp_.getHtmlTable());
+
     sensor_ = &Sensor1;
     i_ = 1;
     while (sensor_ != nullptr) {
         if (sensor_->isActive()) {
-            systemTab_ += fp_.getHtmlTableRowSpan(String(sensor_->GetLocationValue()) + " Max: ", "no data", "sensor" + String(i_) + "_max");
+            response_->print(fp_.getHtmlTableRowSpan(String(sensor_->GetLocationValue()) + " Max: ", "no data", "sensor" + String(i_) + "_max"));
         }
         sensor_ = (Sensor*)sensor_->getNext();
         i_++;
     }
-    systemTab_ += fp_.getHtmlTableEnd();
-    systemTab_ += fp_.getHtmlFieldsetEnd();
+
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
 
     // System Status
-    systemTab_ += fp_.getHtmlFieldset("System Status");
-    systemTab_ += fp_.getHtmlTable();
-    systemTab_ += fp_.getHtmlTableRowSpan("Number of reboots:", String(RebootManager::getRebootCount()), "rebootCount");
-    systemTab_ += fp_.getHtmlTableRowSpan("Last reboot reason:", RebootManager::getLastRebootReasonText(), "rebootReason");
-    systemTab_ += fp_.getHtmlTableEnd();
-    systemTab_ += fp_.getHtmlFieldsetEnd();
+    response_->print(fp_.getHtmlFieldset("System Status"));
+    response_->print(fp_.getHtmlTable());
+    response_->print(fp_.getHtmlTableRowSpan("Number of reboots:", String(RebootManager::getRebootCount()), "rebootCount"));
+    response_->print(fp_.getHtmlTableRowSpan("Last reboot reason:", RebootManager::getLastRebootReasonText(), "rebootReason"));
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
 
     // Network
-    systemTab_ += fp_.getHtmlFieldset("Network");
-    systemTab_ += fp_.getHtmlTable();
-    systemTab_ += fp_.getHtmlTableRowText("MAC Address:", WiFi.macAddress());
-    systemTab_ += fp_.getHtmlTableRowText("IP Address:", WiFi.localIP().toString());
-    systemTab_ += fp_.getHtmlTableEnd();
-    systemTab_ += fp_.getHtmlFieldsetEnd();
+    response_->print(fp_.getHtmlFieldset("Network"));
+    response_->print(fp_.getHtmlTable());
 
-    fp_.addString(systemTab_, "system");
+    uint64_t chipid_ = ESP.getEfuseMac();
+    char macStr_[18];
+    snprintf(macStr_, sizeof(macStr_), "%02X:%02X:%02X:%02X:%02X:%02X",
+        (uint8_t)(chipid_ >> 40), (uint8_t)(chipid_ >> 32),
+        (uint8_t)(chipid_ >> 24), (uint8_t)(chipid_ >> 16),
+        (uint8_t)(chipid_ >> 8), (uint8_t)(chipid_));
+    response_->print(fp_.getHtmlTableRowText("MAC Address:", String(macStr_)));
 
-    // === HTML Ausgabe ===
-    response_->print(fp_.getHtmlHead(iotWebConf.getThingName()));
-    response_->print(F("<link rel=\"icon\" type=\"image/png\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n"));
-    response_->print(F("<link rel=\"apple-touch-icon\" sizes=\"96x96\" href=\"/apple-touch-icon.png\">\n"));
-    response_->print(fp_.getHtmlStyle());
-    response_->print(fp_.getHtmlHeadEnd());
-    response_->print(fp_.getHtmlScript());
-    response_->print(fp_.getHtmlTabs());
+    String ipAddress_;
+    if (WiFi.getMode() == WIFI_AP || WiFi.getMode() == WIFI_AP_STA) {
+        ipAddress_ = WiFi.softAPIP().toString();
+    }
+    else {
+        ipAddress_ = WiFi.localIP().toString();
+    }
+    if (ipAddress_ == "0.0.0.0" || ipAddress_.isEmpty()) {
+        ipAddress_ = "Not connected";
+    }
+    response_->print(fp_.getHtmlTableRowText("IP Address:", ipAddress_));
+
+    response_->print(fp_.getHtmlTableEnd());
+    response_->print(fp_.getHtmlFieldsetEnd());
+
+    response_->print(fp_.getHtmlTabContentEnd());
 
     // Footer
     response_->print(fp_.addNewLine(2));
@@ -476,7 +500,7 @@ void handleRoot(AsyncWebServerRequest* request) {
     response_->print(fp_.getHtmlTableRowText("Go to <a href='config'>configure page</a> to change configuration."));
     response_->print(fp_.getHtmlTableRowText(fp_.getHtmlVersion(Version)));
     response_->print(fp_.getHtmlTableEnd());
-    
+
     response_->print(fp_.getBodyEnd());
     response_->print(fp_.getHtmlEnd());
 
