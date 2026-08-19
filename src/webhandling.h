@@ -10,7 +10,6 @@
 #include <IotWebConfOptionalGroup.h>
 #include <N2kTimer.h>
 #include <N2kAlerts.h>
-#include <WebSerial.h>
 
 #define STRING_LEN 64
 #define NUMBER_LEN 5
@@ -83,6 +82,8 @@ extern void wifiInit();
 extern void wifiLoop();
 
 extern AsyncIotWebConfTab iotWebConf;
+
+extern bool ShouldReboot;
 
 class Sensor : public iotwebconf::ParameterGroup {
 public:
