@@ -5,7 +5,7 @@ extern uint8_t gN2KInstance;
 extern uint8_t gN2KSID;
 extern uint8_t gN2KSource[];
 
-extern int8_t gDeviceCount;
+extern int8_t DeviceCount;
 
 extern char Version[];
 extern bool gParamsChanged;

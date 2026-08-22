@@ -92,6 +92,9 @@ The software has been created using Visual Studio with the Visual Micro add-on. 
 
 See the [NMEA2000-SensorBoard](https://github.com/minou65/NMEA2000-SensorBoard) repository for the complete part list and hardware documentation.
 
+> [!WARNING]
+> When using Sensorboard v3, the DATA line of the DS1820 must be disconnected from IO36 and connected to IO22 instead. Otherwise, the DS1820 will not work.
+
 ## Configuration
 
 After the first boot, there are some values that need to be set up.

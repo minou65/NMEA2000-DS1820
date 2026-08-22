@@ -24,6 +24,7 @@
 #include <NMEA2000_CAN.h>
 #include <N2kMessages.h>
 #include <RebootManager.h>
+#include <EventLogger.h>
 
 #include "webhandling.h"
 #include "version.h"
@@ -45,7 +46,7 @@ TaskHandle_t TaskHandle;
 // Pass OneWire reference to Dallas Temperature
 DallasTemperature sensors(&oneWire);
 
-int8_t gDeviceCount = 1;
+int8_t DeviceCount = 1;
 
 void ParseAlertResponse(const tN2kMsg& N2kMsg);
 void ParseN2kSystemTime(const tN2kMsg& N2kMsg);
@@ -111,7 +112,7 @@ void SetSystemTime(uint16_t DaysSince1970, double SecondsSinceMidnight) {
     char timeStr[64];
     struct tm* timeinfo = localtime(&timestamp);
     strftime(timeStr, sizeof(timeStr), "%Y-%m-%d %H:%M:%S", timeinfo);
-    Serial.printf("System time set from NMEA2000: %s UTC\n", timeStr);
+    eventLogger.logf("System time set from NMEA2000: %s UTC", timeStr);
 }
 
 /**
@@ -128,7 +129,7 @@ void ParseN2kSystemTime(const tN2kMsg& N2kMsg) {
             SetSystemTime(SystemDate, SystemTime);
 
             if (debugMode) {
-                Serial.printf("Received System Time (PGN 126992): Date=%u, Time=%.1fs, Source=%d\n",
+                eventLogger.logf("Received System Time (PGN 126992): Date=%u, Time=%.1fs, Source=%d",
                     SystemDate, SystemTime, TimeSource);
             }
         }
@@ -165,7 +166,7 @@ void ParseN2kGNSS(const tN2kMsg& N2kMsg) {
         SetSystemTime(DaysSince1970, SecondsSinceMidnight);
 
         if (debugMode) {
-            Serial.printf("Received GNSS Time (PGN 129029): Date=%u, Time=%.1fs, Sats=%u\n",
+            eventLogger.logf("Received GNSS Time (PGN 129029): Date=%u, Time=%.1fs, Sats=%u",
                 DaysSince1970, SecondsSinceMidnight, nSatellites);
         }
     }
@@ -175,24 +176,6 @@ void ParseN2kGNSS(const tN2kMsg& N2kMsg) {
 // NMEA2000 CALLBACK
 // ============================================================================
 void OnN2kOpen() {
-    //Serial.println("OnN2kOpen() called - Initializing schedulers...");
-    //
-    //Sensor* sensor_ = &Sensor1;
-    //uint8_t idx_ = 0;
-
-    //while (sensor_ != nullptr) {
-    //    if (sensor_->isActive()) {
-    //        sensor_->AlarmScheduler.UpdateNextTime();
-    //        sensor_->AlarmTextScheduler.UpdateNextTime();
-    //        sensor_->TemperatureScheduler.UpdateNextTime();
-    //        
-    //        Serial.printf("Sensor %u schedulers initialized\n", idx_);
-    //    }
-    //    sensor_ = (Sensor*)sensor_->getNext();
-    //    idx_++;
-    //}
-    //
-    //Serial.println("All schedulers initialized");
 }
 
 void handleN2kMessages(const tN2kMsg& N2kMsg_) {
@@ -225,7 +208,7 @@ void CheckN2kSourceAddressChange() {
     for (size_t i_ = 0; i_ < activeDeviceCount_; ++i_) {
         uint8_t currentSource_ = NMEA2000.GetN2kSource(i_);
         if (gN2KSource[i_] != currentSource_) {
-            Serial.printf("Device %u address changed from %u to %u\n", 
+            eventLogger.logf("Device %u address changed from %u to %u",
                 (unsigned)i_, gN2KSource[i_], currentSource_);
             gN2KSource[i_] = currentSource_;
             changed_ = true;
@@ -240,7 +223,7 @@ void CheckN2kSourceAddressChange() {
             char key_[16];
             snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
             prefs_.putUChar(key_, gN2KSource[i_]);
-            Serial.printf("Saved N2KSource%u = %u to Preferences\n", 
+            eventLogger.logf("Saved N2KSource%u = %u to Preferences", 
                 (unsigned)i_, gN2KSource[i_]);
         }
         prefs_.end();
@@ -254,24 +237,24 @@ void setup() {
         delay(1);
     }
 
-    Serial.println("\n========================================");
-    Serial.println("NMEA2000 DS1820 Sensor");
-    Serial.println("========================================");
-    Serial.printf("Firmware version: %s\n", Version);
-    Serial.println("Sensor type: DS18B20 Temperature Sensor");
-    Serial.printf("Sensor pin: GPIO_%d\n", ONE_WIRE_BUS);
-    Serial.println("========================================\n");
+    eventLogger.log(F("========================================"));
+    eventLogger.log(F("NMEA2000 DS1820 Sensor"));
+    eventLogger.log(F("========================================"));
+    eventLogger.logf("Firmware version: %s", Version);
+    eventLogger.log(F("Sensor type: DS18B20 Temperature Sensor"));
+    eventLogger.logf("Sensor pin: GPIO_%d", ONE_WIRE_BUS);
+    eventLogger.log(F("========================================"));
 
 #ifdef DISABLE_BROWNOUT_DETECTOR
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
     WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
-    Serial.println("Brownout detector disabled via build flag");
+    eventLogger.log(F("Brownout detector disabled via build flag"));
 #endif
 
     RebootManager::begin();
-    Serial.printf("Reboot count: %d\n", RebootManager::getRebootCount());
-    Serial.printf("Last reboot reason: %s\n", RebootManager::getLastRebootReasonText().c_str());
+    eventLogger.logf("Reboot count: %d", RebootManager::getRebootCount());
+    eventLogger.logf("Last reboot reason: %s", RebootManager::getLastRebootReasonText().c_str());
 
     randomSeed(esp_random());
 
@@ -287,25 +270,27 @@ void setup() {
     uint8_t macBased_ = macSum_ % 20;  // 0-19 → 20 Slots
     uint8_t baseAddress_ = 20 + (macBased_ * 5);  // 20, 25, 30, 35, ..., 115
     
-    Serial.printf("Device MAC: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+    eventLogger.logf("Device MAC: %02X:%02X:%02X:%02X:%02X:%02X",
         mac_[0], mac_[1], mac_[2], mac_[3], mac_[4], mac_[5]);
-    Serial.printf("MAC sum: %u (0x%02X + 0x%02X + 0x%02X)\n", 
+    eventLogger.logf("MAC sum: %u (0x%02X + 0x%02X + 0x%02X)",
         macSum_, mac_[3], mac_[4], mac_[5]);
-    Serial.printf("Calculated slot: %u (out of 20 slots)\n", macBased_);
-    Serial.printf("Base N2K address: %u (device addresses: %u-%u)\n", 
+    eventLogger.logf("Calculated slot: %u (out of 20 slots)", macBased_);
+    eventLogger.logf("Base N2K address: %u (device addresses: %u-%u)",
         baseAddress_, baseAddress_, baseAddress_ + 3);
     
     // Startup-Delay: 1 Sekunde pro Slot (max 19 Sekunden)
     uint32_t randomDelay_ = macBased_ * 1000;
-    Serial.printf("Startup delay: %lu ms (ensures collision-free boot)\n", randomDelay_);
+    eventLogger.logf("Startup delay: %lu ms (ensures collision-free boot)", randomDelay_);
     delay(randomDelay_);
 
     // init sensors
-    Serial.println("\nInitializing sensor...");
+    eventLogger.log(F("Initializing sensor..."));
     sensors.begin(); 
-    sensors.setResolution(12);
+    sensors.setResolution(10);
+	eventLogger.log(F("Resolution set to 10-bit"));
 
-    gDeviceCount = sensors.getDeviceCount();
+    DeviceCount = sensors.getDeviceCount();
+	eventLogger.logf("Found %u DS18B20 devices on the bus", DeviceCount);
 
     // Load N2K source addresses from Preferences
     Preferences prefs_;
@@ -322,7 +307,7 @@ void setup() {
         uint8_t defaultAddr_ = baseAddress_ + i_;
         if (defaultAddr_ > 251) {
             defaultAddr_ = 251;  // NMEA2000 max address
-            Serial.printf("WARNING: Calculated address %u exceeds 251, capping at 251\n", 
+            eventLogger.logf("WARNING: Calculated address %u exceeds 251, capping at 251",
                 baseAddress_ + i_);
         }
         
@@ -333,7 +318,7 @@ void setup() {
             gN2KSource[i_] = defaultAddr_;
             prefs_.putUChar(key_, defaultAddr_);
             prefsChanged_ = true;
-            Serial.printf("First boot: Set N2KSource%u = %u (MAC-based)\n", 
+            eventLogger.logf("First boot: Set N2KSource%u = %u (MAC-based)",
                 (unsigned)i_, defaultAddr_);
         } else {
             gN2KSource[i_] = val_;
@@ -342,13 +327,11 @@ void setup() {
     
     prefs_.end();
     
-    Serial.printf("Using N2K addresses: %u, %u, %u, %u\n", 
+    eventLogger.logf("Using N2K addresses: %u, %u, %u, %u",
         gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
 
-	Serial.print("Found "); Serial.print(gDeviceCount); Serial.println(" devices.");
-
     // init wifi
-    Serial.println("\nInitializing WiFi...");
+    eventLogger.log(F("Initializing WiFi..."));
     wifiInit();
 
     // Create GetTemperature task for core 0, loop() runs on core 1
@@ -363,7 +346,7 @@ void setup() {
     );
 
     // Reserve enough buffer for sending all messages. This does not work on small memory devices like Uno or Mega
-    Serial.println("\nSetting up NMEA2000...");
+    eventLogger.log(F("Setting up NMEA2000..."));
     NMEA2000.SetN2kCANMsgBufSize(10);
     NMEA2000.SetN2kCANReceiveFrameBufSize(250);
     NMEA2000.SetN2kCANSendFrameBufSize(250);
@@ -396,18 +379,18 @@ void setup() {
 
     CreateDevicesForActiveSensors();
 
-    Serial.println("Opening NMEA2000...");
+    eventLogger.log(F("Opening NMEA2000..."));
     NMEA2000.Open();
 
     esp_task_wdt_add(NULL);
 
-    Serial.println("\n========================================");
-    Serial.println("NMEA2000 started");
-    Serial.printf("Base address: %u, Using addresses: %u, %u, %u, %u\n", 
+    eventLogger.log(F("========================================"));
+    eventLogger.log(F("NMEA2000 started"));
+    eventLogger.logf("Base address: %u, Using addresses: %u, %u, %u, %u", 
         baseAddress_, gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
-    Serial.println("Listening for GPS time on NMEA2000 bus");
-    Serial.println("Setup complete");
-    Serial.println("========================================\n");
+    eventLogger.log(F("Listening for GPS time on NMEA2000 bus"));
+    eventLogger.log(F("Setup complete"));
+    eventLogger.log(F("========================================"));
 }
 
 uint64_t getDeviceUID(uint8_t devId) {
@@ -460,11 +443,11 @@ void CreateDevicesForActiveSensors() {
                     char timeStr_[64];
                     struct tm* timeinfo_ = localtime(&savedTime_);
                     strftime(timeStr_, sizeof(timeStr_), "%Y-%m-%d %H:%M:%S", timeinfo_);
-                    Serial.printf("Loaded max temp %.2f°C from %s for sensor %u\n", 
+                    eventLogger.logf("Loaded max temp %.2f°C from %s for sensor %u",
                         savedMax_, timeStr_, deviceIndex_);
                 } else {
                     sensor_->SetMaxTemperature(savedMax_, 0);
-                    Serial.printf("Loaded max temp %.2f°C (no timestamp) for sensor %u\n", 
+                    eventLogger.logf("Loaded max temp %.2f°C (no timestamp) for sensor %u",
                         savedMax_, deviceIndex_);
                 }
             }
@@ -529,7 +512,7 @@ void CreateDevicesForActiveSensors() {
 				deviceIndex_ // Device instance
 			);
 
-			Serial.printf("Created sensor device %u: '%s' with source %u, SID %u, instance %u\n", 
+			eventLogger.logf("Created sensor device %u: '%s' with source %u, SID %u, instance %u", 
                 deviceIndex_, productName_.c_str(), source_, sid_, deviceInstance_);
 
             // Alert-Device
@@ -546,7 +529,7 @@ void CreateDevicesForActiveSensors() {
             sensor_->Alert.SetAlertThreshold(t2kNAlertThresholdMethod(sensor_->GetThresholdMethod()), 0, sensor_->GetThresholdValue());
             sensor_->Alert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
 
-			Serial.printf("Alert system set for sensor %u with instance %u\n", deviceIndex_, alertInstance_);
+			eventLogger.logf("Alert system set for sensor %u with instance %u", deviceIndex_, alertInstance_);
 
             // Fault-Alert-Device
             String faultDescription_ = productName_ + " Fault";
@@ -562,12 +545,12 @@ void CreateDevicesForActiveSensors() {
             sensor_->FaultAlert.SetAlertThreshold(N2kts_AlertThresholdMethodEqual, 0, (uint64_t)(int64_t)-127);
             sensor_->FaultAlert.SetTemporarySilenceTime(sensor_->GetTemporarySilenceTime() * 60);
 
-			Serial.printf("Fault alert system set for sensor %u with instance %u\n", deviceIndex_, faultAlertInstance_);
+			eventLogger.logf("Fault alert system set for sensor %u with instance %u", deviceIndex_, faultAlertInstance_);
 
             sensor_->AlarmScheduler.UpdateNextTime();
             sensor_->AlarmTextScheduler.UpdateNextTime();
             sensor_->TemperatureScheduler.UpdateNextTime();
-            Serial.printf("Initialized schedulers for sensor %u\n", deviceIndex_);
+            eventLogger.logf("Initialized schedulers for sensor %u", deviceIndex_);
 
             deviceIndex_++;
         }
@@ -610,8 +593,11 @@ void SendTemperatur(Sensor* sensor, uint8_t deviceIndex) {
             lastInfoSent_[deviceIndex] = millis();
         }
 
-        Serial.printf("Sent temperature %.2f°C for sensor %u (source %u, sid %u)\n", 
-			sensor->GetSensorValue(), deviceIndex, TempSource_, sid_);
+        if (debugMode) {
+            eventLogger.logf("Sent temperature %.2f°C for sensor %u (source %u, sid %u)", 
+                sensor->GetSensorValue(), deviceIndex, TempSource_, sid_);
+		}
+
     }
 }
 
@@ -623,12 +609,16 @@ void SendAlert(Sensor* sensor, uint8_t deviceIndex) {
 
         sensor->FaultAlert.SetN2kAlert(N2kMsg_);
         if (!NMEA2000.SendMsg(N2kMsg_, deviceIndex)) {
-            Serial.printf("Failed to send Fault Alert for device %u\n", deviceIndex);
+            if (debugMode) {
+                eventLogger.logf("Failed to send Fault Alert for device %u", deviceIndex);
+			}
         }
 
         sensor->Alert.SetN2kAlert(N2kMsg_);
         if (!NMEA2000.SendMsg(N2kMsg_, deviceIndex)) {
-            Serial.printf("Failed to send Alert for device %u\n", deviceIndex);
+            if (debugMode) {
+                eventLogger.logf("Failed to send Alert for device %u", deviceIndex);
+            }
         }
     }
 }
@@ -641,12 +631,16 @@ void SendAlertText(Sensor* sensor, uint8_t deviceIndex) {
 
         sensor->FaultAlert.SetN2kAlertText(N2kMsg_);
         if (!NMEA2000.SendMsg(N2kMsg_, deviceIndex)) {
-            Serial.printf("Failed to send Fault Alert Text for device %u\n", deviceIndex);
+            if (debugMode) {
+                eventLogger.logf("Failed to send Fault Alert Text for device %u", deviceIndex);
+			}   
         }
 
         sensor->Alert.SetN2kAlertText(N2kMsg_);
         if (!NMEA2000.SendMsg(N2kMsg_, deviceIndex)) {
-            Serial.printf("Failed to send Alert Text for device %u\n", deviceIndex);
+            if (debugMode) {
+                eventLogger.logf("Failed to send Alert Text for device %u", deviceIndex);
+			}
         }
     }
 }
@@ -698,7 +692,7 @@ void loop() {
     }
 
     if (TimeSet && (millis() - LastTimeUpdate > 3600000)) {
-        Serial.println("Warning: No time update received for 1 hour");
+        eventLogger.log(F("Warning: No time update received for 1 hour"));
         TimeSet = false;
     }
 
@@ -747,10 +741,10 @@ void loop2(void* parameter) {
                         char timeStr_[64];
                         struct tm* timeinfo_ = localtime(&maxTime_);
                         strftime(timeStr_, sizeof(timeStr_), "%Y-%m-%d %H:%M:%S", timeinfo_);
-                        Serial.printf("New max temp %.2f°C saved for sensor %u at %s\n", 
+                        eventLogger.logf("New max temp %.2f°C saved for sensor %u at %s", 
                             d_, index_, timeStr_);
                     } else {
-                        Serial.printf("New max temp %.2f°C saved for sensor %u (no valid time yet)\n", 
+                        eventLogger.logf("New max temp %.2f°C saved for sensor %u (no valid time yet)", 
                             d_, index_);
                     }
                     

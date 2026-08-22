@@ -59,7 +59,7 @@
 
 #define ESP32_CAN_TX_PIN GPIO_NUM_16    // CAN Bus TX Pin
 #define ESP32_CAN_RX_PIN GPIO_NUM_17     // CAN Bus RX Pin
-#define ONE_WIRE_BUS     GPIO_NUM_36    // DS18B20 OneWire Data Pin
+#define ONE_WIRE_BUS     GPIO_NUM_26    // DS18B20 OneWire Data Pin
 
 #define BOARD_NAME "NMEA Sensor Board"
 #define BOARD_INFO "Standard Wemos D1 Mini ESP32 configuration"

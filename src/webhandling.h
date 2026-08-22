@@ -10,7 +10,6 @@
 #include <IotWebConfOptionalGroup.h>
 #include <N2kTimer.h>
 #include <N2kAlerts.h>
-#include <WebSerial.h>
 
 #define STRING_LEN 64
 #define NUMBER_LEN 5
@@ -79,8 +78,10 @@ const char wifiInitialApPassword[] PROGMEM = "123456789";
 
 #define ON_LEVEL HIGH
 
-extern void wifiInit();
-extern void wifiLoop();
+void wifiInit();
+void wifiLoop();
+
+extern bool debugMode;
 
 extern AsyncIotWebConfTab iotWebConf;
 
