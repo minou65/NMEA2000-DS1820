@@ -80,6 +80,7 @@ void handleRoot(AsyncWebServerRequest* request);
 void handlePost(AsyncWebServerRequest* request);
 void handleWebSerialCommand(uint8_t* data, size_t len);
 void handleReboot(AsyncWebServerRequest* request);
+void handleConfigSavedPage(iotwebconf::WebRequestWrapper* webRequestWrapper);
 void convertParams();
 void configSaved();
 void wifiConnected();
@@ -149,6 +150,7 @@ void wifiInit() {
 
     iotWebConf.setConfigSavedCallback(&configSaved);
     iotWebConf.setWifiConnectionCallback(&wifiConnected);
+    iotWebConf.setConfigSavedPage(&handleConfigSavedPage);
 
     iotWebConf.getApTimeoutParameter()->visible = true;
 
@@ -753,4 +755,9 @@ void handleReboot(AsyncWebServerRequest* request) {
     request->client()->setNoDelay(true); // Disable Nagle's algorithm so the client gets the response immediately
     request->send(response_);
     ShouldReboot = true;
+}
+
+void handleConfigSavedPage(iotwebconf::WebRequestWrapper* webRequestWrapper) {
+    webRequestWrapper->sendHeader("Location", "/");
+    webRequestWrapper->send(302, "text/plain", "");
 }

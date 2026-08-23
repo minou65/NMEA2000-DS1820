@@ -1,6 +1,6 @@
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 4
-#define VERSION_PATCH 16
+#define VERSION_PATCH 17
 
 // Automatically generated build version. Do not modify.
 #define VERSION_BUILD 402
