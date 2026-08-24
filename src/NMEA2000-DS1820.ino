@@ -351,8 +351,18 @@ void setup() {
     NMEA2000.SetN2kCANReceiveFrameBufSize(250);
     NMEA2000.SetN2kCANSendFrameBufSize(250);
 
-    // Set the device count for NMEA2000
-    NMEA2000.SetDeviceCount(4);
+    // Set the device count for NMEA2000 - count active sensors first
+    Sensor* sensor_ = &Sensor1;
+    uint8_t activeDeviceCount_ = 0;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            activeDeviceCount_++;
+        }
+        sensor_ = (Sensor*)sensor_->getNext();
+    }
+
+    eventLogger.logf("Found %u active sensors", activeDeviceCount_);
+    NMEA2000.SetDeviceCount(activeDeviceCount_);
 
     NMEA2000.SetOnOpen(OnN2kOpen);
     NMEA2000.SetMsgHandler(handleN2kMessages);
@@ -478,7 +488,6 @@ void CreateDevicesForActiveSensors() {
 				deviceIndex_  // Device instance
             );
 
-            // VERBESSERT: Kurzer, eindeutiger Product Name
             // Format: "DS1820-XX S1" wobei XX=MAC-ID, S1=Sensor-Nummer
             String productName_ = deviceModelId_ + " S" + String(deviceIndex_ + 1);
             
@@ -495,7 +504,7 @@ void CreateDevicesForActiveSensors() {
             NMEA2000.SetProductInformation(
                 String(deviceId_).c_str(), // Model serial code
                 100 + deviceIndex_,  // Product Code (eindeutig pro Sensor)
-                productName_.c_str(),  // KURZER, eindeutiger Name
+                productName_.c_str(),
                 Version,
                 Version,
 				1, // Load Equivalency
