@@ -230,177 +230,145 @@ void CheckN2kSourceAddressChange() {
     }
 }
 
-void setup() {
+// Auto-Discovery: Weise unbekannte Sensoren automatisch zu
+void DiscoverAndAssignSensors() {
+    eventLogger.log(F("Starting sensor discovery..."));
 
-    Serial.begin(115200);
-    while (!Serial) {
-        delay(1);
+    // Scanne alle physischen DS18B20-Sensoren
+    uint8_t physicalCount_ = sensors.getDeviceCount();
+    eventLogger.logf("Found %u physical DS18B20 devices", physicalCount_);
+
+    if (physicalCount_ == 0) {
+        eventLogger.log(F("WARNING: No physical sensors found on OneWire bus!"));
+        return;
     }
 
-    eventLogger.log(F("========================================"));
-    eventLogger.log(F("NMEA2000 DS1820 Sensor"));
-    eventLogger.log(F("========================================"));
-    eventLogger.logf("Firmware version: %s", Version);
-    eventLogger.log(F("Sensor type: DS18B20 Temperature Sensor"));
-    eventLogger.logf("Sensor pin: GPIO_%d", ONE_WIRE_BUS);
-    eventLogger.log(F("========================================"));
+    bool anyNewAssignment_ = false;
 
-#ifdef DISABLE_BROWNOUT_DETECTOR
-#include "soc/soc.h"
-#include "soc/rtc_cntl_reg.h"
-    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
-    eventLogger.log(F("Brownout detector disabled via build flag"));
-#endif
-
-    RebootManager::begin();
-    eventLogger.logf("Reboot count: %d", RebootManager::getRebootCount());
-    eventLogger.logf("Last reboot reason: %s", RebootManager::getLastRebootReasonText().c_str());
-
-    randomSeed(esp_random());
-
-    // ===============================================================
-    // MAC-basierte eindeutige Adressierung (Bereich 20-115)
-    // Unterstützt bis zu 20 Geräte mit je 4 logischen Devices
-    // ===============================================================
-    uint8_t mac_[6];
-    esp_efuse_mac_get_default(mac_);
-    
-    // Nutze MAC[3], MAC[4], MAC[5] für maximale Streuung
-    uint16_t macSum_ = (uint16_t)mac_[3] + (uint16_t)mac_[4] + (uint16_t)mac_[5];
-    uint8_t macBased_ = macSum_ % 20;  // 0-19 → 20 Slots
-    uint8_t baseAddress_ = 20 + (macBased_ * 5);  // 20, 25, 30, 35, ..., 115
-    
-    eventLogger.logf("Device MAC: %02X:%02X:%02X:%02X:%02X:%02X",
-        mac_[0], mac_[1], mac_[2], mac_[3], mac_[4], mac_[5]);
-    eventLogger.logf("MAC sum: %u (0x%02X + 0x%02X + 0x%02X)",
-        macSum_, mac_[3], mac_[4], mac_[5]);
-    eventLogger.logf("Calculated slot: %u (out of 20 slots)", macBased_);
-    eventLogger.logf("Base N2K address: %u (device addresses: %u-%u)",
-        baseAddress_, baseAddress_, baseAddress_ + 3);
-    
-    // Startup-Delay: 1 Sekunde pro Slot (max 19 Sekunden)
-    uint32_t randomDelay_ = macBased_ * 1000;
-    eventLogger.logf("Startup delay: %lu ms (ensures collision-free boot)", randomDelay_);
-    delay(randomDelay_);
-
-    // init sensors
-    eventLogger.log(F("Initializing sensor..."));
-    sensors.begin(); 
-    sensors.setResolution(10);
-	eventLogger.log(F("Resolution set to 10-bit"));
-
-    DeviceCount = sensors.getDeviceCount();
-	eventLogger.logf("Found %u DS18B20 devices on the bus", DeviceCount);
-
-    // Load N2K source addresses from Preferences
-    Preferences prefs_;
-    prefs_.begin("n2k", false);  // read-write
-    
-    bool prefsChanged_ = false;
-    size_t deviceCount_ = sizeof(gN2KSource) / sizeof(gN2KSource[0]);
-    
-    for (size_t i_ = 0; i_ < deviceCount_; ++i_) {
-        char key_[16];
-        snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
-        
-        // Default basierend auf MAC + Index (mit Prüfung auf max 251)
-        uint8_t defaultAddr_ = baseAddress_ + i_;
-        if (defaultAddr_ > 251) {
-            defaultAddr_ = 251;  // NMEA2000 max address
-            eventLogger.logf("WARNING: Calculated address %u exceeds 251, capping at 251",
-                baseAddress_ + i_);
+    for (uint8_t i_ = 0; i_ < physicalCount_; i_++) {
+        uint8_t addr_[8];
+        if (!sensors.getAddress(addr_, i_)) {
+            eventLogger.logf("WARNING: Could not read address of physical sensor %u", i_);
+            continue;
         }
-        
-        uint8_t val_ = prefs_.getUChar(key_, 255);  // 255 = nicht gesetzt
-        
-        if (val_ == 255) {
-            // Erste Inbetriebnahme: MAC-basierte Adresse speichern
-            gN2KSource[i_] = defaultAddr_;
-            prefs_.putUChar(key_, defaultAddr_);
-            prefsChanged_ = true;
-            eventLogger.logf("First boot: Set N2KSource%u = %u (MAC-based)",
-                (unsigned)i_, defaultAddr_);
-        } else {
-            gN2KSource[i_] = val_;
+
+        // Prüfe ob diese Adresse bereits einem Sensor zugewiesen ist
+        bool found_ = false;
+        Sensor* sensor_ = &Sensor1;
+        uint8_t sensorNum_ = 1;
+        while (sensor_ != nullptr) {
+            if (sensor_->MatchesAddress(addr_)) {
+                found_ = true;
+                eventLogger.logf("Physical sensor %u already assigned to Sensor%u", i_, sensorNum_);
+                break;
+            }
+            sensor_ = (Sensor*)sensor_->getNext();
+            sensorNum_++;
+        }
+
+        if (!found_) {
+            // Neue Adresse gefunden - versuche zuzuweisen
+            eventLogger.logf("Physical sensor %u needs assignment, checking slots...", i_);
+            
+            sensor_ = &Sensor1;
+            sensorNum_ = 1;
+            bool assigned_ = false;
+            
+            while (sensor_ != nullptr) {
+                // DEBUG: Prüfe jeden Slot
+                bool hasAddr_ = sensor_->HasDeviceAddress();
+                eventLogger.logf("  Checking Sensor%u: HasDeviceAddress=%d", sensorNum_, hasAddr_);
+                
+                // Weise zu, wenn noch keine Adresse zugewiesen ist
+                if (!hasAddr_) {
+                    sensor_->SetDeviceAddress(addr_);
+                    anyNewAssignment_ = true;
+                    assigned_ = true;
+
+                    char addrStr_[24];
+                    snprintf(addrStr_, sizeof(addrStr_),
+                        "%02X%02X%02X%02X%02X%02X%02X%02X",
+                        addr_[0], addr_[1], addr_[2], addr_[3],
+                        addr_[4], addr_[5], addr_[6], addr_[7]);
+
+                    eventLogger.logf("NEW: Assigned physical sensor %u (addr: %s) to Sensor%u",
+                        i_, addrStr_, sensorNum_);
+
+                    // Hinweis wenn der Sensor nicht aktiv konfiguriert ist
+                    if (!sensor_->isActive()) {
+                        eventLogger.logf("  → Sensor%u is currently INACTIVE (Source=None). Configure via web interface to use.", sensorNum_);
+                    }
+
+                    break;
+                }
+                sensor_ = (Sensor*)sensor_->getNext();
+                sensorNum_++;
+            }
+
+            // Warnung wenn alle 4 Slots bereits belegt sind
+            if (!assigned_) {
+                char addrStr_[24];
+                snprintf(addrStr_, sizeof(addrStr_),
+                    "%02X%02X%02X%02X%02X%02X%02X%02X",
+                    addr_[0], addr_[1], addr_[2], addr_[3],
+                    addr_[4], addr_[5], addr_[6], addr_[7]);
+                eventLogger.logf("WARNING: Physical sensor %u (addr: %s) found but all 4 sensor slots are already assigned!",
+                    i_, addrStr_);
+            }
         }
     }
-    
-    prefs_.end();
-    
-    eventLogger.logf("Using N2K addresses: %u, %u, %u, %u",
-        gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
 
-    // init wifi
-    eventLogger.log(F("Initializing WiFi..."));
-    wifiInit();
-
-    // Create GetTemperature task for core 0, loop() runs on core 1
-    xTaskCreatePinnedToCore(
-        loop2, /* Function to implement the task */
-        "TaskHandle", /* Name of the task */
-        10000,  /* Stack size in words */
-        NULL,  /* Task input parameter */
-        0,  /* Priority of the task */
-        &TaskHandle,  /* Task handle. */
-        0 /* Core where the task should run */
-    );
-
-    // Reserve enough buffer for sending all messages. This does not work on small memory devices like Uno or Mega
-    eventLogger.log(F("Setting up NMEA2000..."));
-    NMEA2000.SetN2kCANMsgBufSize(10);
-    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
-    NMEA2000.SetN2kCANSendFrameBufSize(250);
-
-    // Set the device count for NMEA2000 - count active sensors first
+    // Prüfe auf fehlende Sensoren (konfiguriert aber nicht gefunden)
     Sensor* sensor_ = &Sensor1;
-    uint8_t activeDeviceCount_ = 0;
+    uint8_t sensorNum_ = 1;
     while (sensor_ != nullptr) {
-        if (sensor_->isActive()) {
-            activeDeviceCount_++;
+        if (sensor_->isActive() && sensor_->HasDeviceAddress()) {
+            // Prüfe ob dieser Sensor physisch noch vorhanden ist
+            bool found_ = false;
+            for (uint8_t i_ = 0; i_ < physicalCount_; i_++) {
+                uint8_t addr_[8];
+                if (sensors.getAddress(addr_, i_) && sensor_->MatchesAddress(addr_)) {
+                    found_ = true;
+                    break;
+                }
+            }
+
+            if (!found_) {
+                eventLogger.logf("WARNING: Sensor%u (addr: %s) is configured as ACTIVE but NOT FOUND on bus!",
+                    sensorNum_, sensor_->GetDeviceAddressString().c_str());
+                eventLogger.log("  → Sensor may be disconnected or faulty. Will report -127°C.");
+            }
+        }
+
+        sensor_ = (Sensor*)sensor_->getNext();
+        sensorNum_++;
+    }
+
+    if (anyNewAssignment_) {
+        SaveSensorAddresses();
+        eventLogger.log(F("Sensor discovery completed - new assignments saved"));
+    }
+    else {
+        eventLogger.log(F("Sensor discovery completed - no changes"));
+    }
+
+    // Zusammenfassung
+    eventLogger.log(F("Current sensor mapping:"));
+    sensor_ = &Sensor1;
+    sensorNum_ = 1;
+    while (sensor_ != nullptr) {
+        if (sensor_->HasDeviceAddress()) {
+            eventLogger.logf("  Sensor%u: %s %s",
+                sensorNum_,
+                sensor_->GetDeviceAddressString().c_str(),
+                sensor_->isActive() ? "(ACTIVE)" : "(inactive - configure to use)");
+        }
+        else {
+            eventLogger.logf("  Sensor%u: Not assigned", sensorNum_);
         }
         sensor_ = (Sensor*)sensor_->getNext();
+        sensorNum_++;
     }
-
-    eventLogger.logf("Found %u active sensors", activeDeviceCount_);
-    NMEA2000.SetDeviceCount(activeDeviceCount_);
-
-    NMEA2000.SetOnOpen(OnN2kOpen);
-    NMEA2000.SetMsgHandler(handleN2kMessages);
-
-#ifdef DEBUG_NMEA_MSG
-    Serial.begin(115200);
-    NMEA2000.SetForwardStream(&Serial);
-
-#ifdef DEBUG_NMEA_MSG_ASCII
-    NMEA2000.SetForwardType(tNMEA2000::fwdt_Text);
-#endif // DEBUG_NMEA_MSG_ASCII
-
-#ifdef  DEBUG_NMEA_Actisense
-    NMEA2000.SetDebugMode(tNMEA2000::dm_Actisense);
-#endif //  DEBUG_NMEA_Actisense
-
-#else
-    NMEA2000.EnableForward(false); // Disable all msg forwarding to USB (=Serial)
-
-#endif // DEBUG_NMEA_MSG
-
-    // If you also want to see all traffic on the bus use N2km_ListenAndNode instead of N2km_NodeOnly below
-    NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly);
-
-    CreateDevicesForActiveSensors();
-
-    eventLogger.log(F("Opening NMEA2000..."));
-    NMEA2000.Open();
-
-    esp_task_wdt_add(NULL);
-
-    eventLogger.log(F("========================================"));
-    eventLogger.log(F("NMEA2000 started"));
-    eventLogger.logf("Base address: %u, Using addresses: %u, %u, %u, %u", 
-        baseAddress_, gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
-    eventLogger.log(F("Listening for GPS time on NMEA2000 bus"));
-    eventLogger.log(F("Setup complete"));
-    eventLogger.log(F("========================================"));
 }
 
 uint64_t getDeviceUID(uint8_t devId) {
@@ -671,6 +639,245 @@ void ParseAlertResponse(const tN2kMsg& N2kMsg) {
     }
 }
 
+// OneWire-Adressen aus Preferences laden
+void LoadSensorAddresses() {
+    Preferences prefs_;
+    prefs_.begin("ds1820", true);  // read-only
+    
+    Sensor* sensor_ = &Sensor1;
+    uint8_t sensorNum_ = 1;
+    
+    while (sensor_ != nullptr) {
+        char key_[16];
+        snprintf(key_, sizeof(key_), "addr_%u", sensorNum_);
+        
+        size_t len_ = prefs_.getBytesLength(key_);
+        if (len_ == 8) {
+            uint8_t addr_[8];
+            prefs_.getBytes(key_, addr_, 8);
+            sensor_->SetDeviceAddress(addr_);
+            eventLogger.logf("Loaded address for Sensor%u: %s", 
+                sensorNum_, sensor_->GetDeviceAddressString().c_str());
+        }
+        
+        sensor_ = (Sensor*)sensor_->getNext();
+        sensorNum_++;
+    }
+    
+    prefs_.end();
+}
+
+// OneWire-Adressen in Preferences speichern
+void SaveSensorAddresses() {
+    Preferences prefs_;
+    prefs_.begin("ds1820", false);  // read-write
+    
+    Sensor* sensor_ = &Sensor1;
+    uint8_t sensorNum_ = 1;
+    
+    while (sensor_ != nullptr) {
+        if (sensor_->HasDeviceAddress()) {
+            char key_[16];
+            snprintf(key_, sizeof(key_), "addr_%u", sensorNum_);
+            prefs_.putBytes(key_, sensor_->GetDeviceAddress(), 8);
+        }
+        
+        sensor_ = (Sensor*)sensor_->getNext();
+        sensorNum_++;
+    }
+    
+    prefs_.end();
+    eventLogger.log(F("Saved sensor addresses to preferences"));
+}
+
+void setup() {
+
+    Serial.begin(115200);
+    while (!Serial) {
+        delay(1);
+    }
+
+    eventLogger.log(F("========================================"));
+    eventLogger.log(F("NMEA2000 DS1820 Sensor"));
+    eventLogger.log(F("========================================"));
+    eventLogger.logf("Firmware version: %s", Version);
+    eventLogger.log(F("Sensor type: DS18B20 Temperature Sensor"));
+    eventLogger.logf("Sensor pin: GPIO_%d", ONE_WIRE_BUS);
+    eventLogger.log(F("========================================"));
+
+#ifdef DISABLE_BROWNOUT_DETECTOR
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
+    WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+    eventLogger.log(F("Brownout detector disabled via build flag"));
+#endif
+
+    RebootManager::begin();
+    eventLogger.logf("Reboot count: %d", RebootManager::getRebootCount());
+    eventLogger.logf("Last reboot reason: %s", RebootManager::getLastRebootReasonText().c_str());
+
+    randomSeed(esp_random());
+
+    // ===============================================================
+    // MAC-basierte eindeutige Adressierung (Bereich 20-115)
+    // Unterstützt bis zu 20 Geräte mit je 4 logischen Devices
+    // ===============================================================
+    uint8_t mac_[6];
+    esp_efuse_mac_get_default(mac_);
+    
+    // Nutze MAC[3], MAC[4], MAC[5] für maximale Streuung
+    uint16_t macSum_ = (uint16_t)mac_[3] + (uint16_t)mac_[4] + (uint16_t)mac_[5];
+    uint8_t macBased_ = macSum_ % 20;  // 0-19 → 20 Slots
+    uint8_t baseAddress_ = 20 + (macBased_ * 5);  // 20, 25, 30, 35, ..., 115
+    
+    eventLogger.logf("Device MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+        mac_[0], mac_[1], mac_[2], mac_[3], mac_[4], mac_[5]);
+    eventLogger.logf("MAC sum: %u (0x%02X + 0x%02X + 0x%02X)",
+        macSum_, mac_[3], mac_[4], mac_[5]);
+    eventLogger.logf("Calculated slot: %u (out of 20 slots)", macBased_);
+    eventLogger.logf("Base N2K address: %u (device addresses: %u-%u)",
+        baseAddress_, baseAddress_, baseAddress_ + 3);
+    
+    // Startup-Delay: 1 Sekunde pro Slot (max 19 Sekunden)
+    uint32_t randomDelay_ = macBased_ * 1000;
+    eventLogger.logf("Startup delay: %lu ms (ensures collision-free boot)", randomDelay_);
+    delay(randomDelay_);
+
+    // init sensors
+    eventLogger.log(F("Initializing sensor..."));
+    sensors.begin(); 
+    sensors.setResolution(10);
+    eventLogger.log(F("Resolution set to 10-bit"));
+
+    DeviceCount = sensors.getDeviceCount();
+    eventLogger.logf("Found %u DS18B20 devices on the bus", DeviceCount);
+
+    // Verkette die Sensor-Objekte manuell VOR der Discovery
+    eventLogger.log(F("Linking sensor objects..."));
+    Sensor1.setNext(&Sensor2);
+    Sensor2.setNext(&Sensor3);
+    Sensor3.setNext(&Sensor4);
+
+    // Load N2K source addresses from Preferences
+    Preferences prefs_;
+    prefs_.begin("n2k", false);  // read-write
+    
+    bool prefsChanged_ = false;
+    size_t deviceCount_ = sizeof(gN2KSource) / sizeof(gN2KSource[0]);
+    
+    for (size_t i_ = 0; i_ < deviceCount_; ++i_) {
+        char key_[16];
+        snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
+        
+        // Default basierend auf MAC + Index (mit Prüfung auf max 251)
+        uint8_t defaultAddr_ = baseAddress_ + i_;
+        if (defaultAddr_ > 251) {
+            defaultAddr_ = 251;  // NMEA2000 max address
+            eventLogger.logf("WARNING: Calculated address %u exceeds 251, capping at 251",
+                baseAddress_ + i_);
+        }
+        
+        uint8_t val_ = prefs_.getUChar(key_, 255);  // 255 = nicht gesetzt
+        
+        if (val_ == 255) {
+            // Erste Inbetriebnahme: MAC-basierte Adresse speichern
+            gN2KSource[i_] = defaultAddr_;
+            prefs_.putUChar(key_, defaultAddr_);
+            prefsChanged_ = true;
+            eventLogger.logf("First boot: Set N2KSource%u = %u (MAC-based)",
+                (unsigned)i_, defaultAddr_);
+        } else {
+            gN2KSource[i_] = val_;
+        }
+    }
+    
+    prefs_.end();
+    
+    eventLogger.logf("Using N2K addresses: %u, %u, %u, %u",
+        gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
+
+    // init wifi
+    eventLogger.log(F("Initializing WiFi..."));
+    wifiInit();
+
+    LoadSensorAddresses();
+    DiscoverAndAssignSensors();
+
+    // Create GetTemperature task for core 0, loop() runs on core 1
+    xTaskCreatePinnedToCore(
+        loop2,
+        "TaskHandle",
+        10000,
+        NULL,
+        0,
+        &TaskHandle,
+        0
+    );
+
+    // Reserve enough buffer for sending all messages
+    eventLogger.log(F("Setting up NMEA2000..."));
+    NMEA2000.SetN2kCANMsgBufSize(10);
+    NMEA2000.SetN2kCANReceiveFrameBufSize(250);
+    NMEA2000.SetN2kCANSendFrameBufSize(250);
+
+    // Set the device count for NMEA2000 - count active sensors
+    Sensor* sensor_ = &Sensor1;
+    uint8_t activeDeviceCount_ = 0;
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            activeDeviceCount_++;
+        }
+        sensor_ = (Sensor*)sensor_->getNext();
+    }
+
+    eventLogger.logf("Found %u active sensors", activeDeviceCount_);
+    
+    // Warnung wenn physische Sensoren von Konfiguration abweichen
+    if (activeDeviceCount_ != DeviceCount) {
+        eventLogger.logf("WARNING: %u physical DS18B20 sensors found, but %u configured as active",
+            DeviceCount, activeDeviceCount_);
+        eventLogger.log("Sensors may need reconfiguration via web interface");
+    }
+    
+    NMEA2000.SetDeviceCount(activeDeviceCount_);
+
+    NMEA2000.SetOnOpen(OnN2kOpen);
+    NMEA2000.SetMsgHandler(handleN2kMessages);
+
+#ifdef DEBUG_NMEA_MSG
+    Serial.begin(115200);
+    NMEA2000.SetForwardStream(&Serial);
+
+#ifdef DEBUG_NMEA_MSG_ASCII
+    NMEA2000.SetForwardType(tNMEA2000::fwdt_Text);
+#endif
+
+#ifdef  DEBUG_NMEA_Actisense
+    NMEA2000.SetDebugMode(tNMEA2000::dm_Actisense);
+#endif
+
+#else
+    NMEA2000.EnableForward(false);
+#endif
+
+    NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly);
+
+    CreateDevicesForActiveSensors();
+
+    eventLogger.log(F("Opening NMEA2000..."));
+    NMEA2000.Open();
+
+    esp_task_wdt_add(NULL);
+
+    eventLogger.log(F("========================================"));
+    eventLogger.log(F("NMEA2000 started"));
+    eventLogger.logf("Base address: %u, Using addresses: %u, %u, %u, %u", 
+        baseAddress_, gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
+    eventLogger.log(F("Listening for GPS time on NMEA2000 bus"));
+    eventLogger.log(F("Setup complete"));
+    eventLogger.log(F("========================================"));
+}
+
 void loop() {
     wifiLoop();
 
@@ -720,27 +927,35 @@ double GetTemperatur(int Index) {
 
 void loop2(void* parameter) {
     esp_task_wdt_add(NULL);
-    for (;;) {   // Endless loop
-        sensors.requestTemperatures(); // Send the command to get temperatures
-        
-        // Wait for conversion to complete (750ms for 12-bit resolution + safety margin)
+    for (;;) {
+        sensors.requestTemperatures();
         vTaskDelay(1000);
         
         Sensor* sensor_ = &Sensor1;
-        uint8_t index_ = 0;
+        uint8_t sensorNum_ = 1;
+        
         while (sensor_ != nullptr) {
             if (sensor_->isActive()) {
-                double d_ = GetTemperatur(index_);
+                double temp_ = -127.0;  // Default: Sensor-Fehler
+                
+                if (sensor_->HasDeviceAddress()) {
+                    // Lese direkt per OneWire-Adresse
+                    temp_ = sensors.getTempC(sensor_->GetDeviceAddress());
+                } else {
+                    eventLogger.logf("WARNING: Sensor%u is active but has no device address assigned",
+                        sensorNum_);
+                }
+                
                 double previousMax_ = sensor_->GetMaxTemperature();
-                sensor_->SetSensorValue(d_);
+                sensor_->SetSensorValue(temp_);
 
-                if (d_ != -127 && d_ > previousMax_) {
-                    sensor_->UpdateMaxTemperature(d_);
-
+                if (temp_ != -127 && temp_ > previousMax_) {
+                    sensor_->UpdateMaxTemperature(temp_);
+                    
                     Preferences pref_;
                     pref_.begin("ds1820", false);
-                    String maxKey_ = "max_" + String(index_);
-                    String timeKey_ = "time_" + String(index_);
+                    String maxKey_ = "max_" + String(sensorNum_ - 1);
+                    String timeKey_ = "time_" + String(sensorNum_ - 1);
                     pref_.putDouble(maxKey_.c_str(), sensor_->GetMaxTemperature());
                     
                     time_t maxTime_ = sensor_->GetMaxTemperatureTime();
@@ -750,18 +965,15 @@ void loop2(void* parameter) {
                         char timeStr_[64];
                         struct tm* timeinfo_ = localtime(&maxTime_);
                         strftime(timeStr_, sizeof(timeStr_), "%Y-%m-%d %H:%M:%S", timeinfo_);
-                        eventLogger.logf("New max temp %.2f°C saved for sensor %u at %s", 
-                            d_, index_, timeStr_);
-                    } else {
-                        eventLogger.logf("New max temp %.2f°C saved for sensor %u (no valid time yet)", 
-                            d_, index_);
+                        eventLogger.logf("New max temp %.2f°C saved for Sensor%u at %s", 
+                            temp_, sensorNum_, timeStr_);
                     }
-                    
                     pref_.end();
                 }
             }
-            index_++;
+            
             sensor_ = (Sensor*)sensor_->getNext();
+            sensorNum_++;
         }
         esp_task_wdt_reset();
     }

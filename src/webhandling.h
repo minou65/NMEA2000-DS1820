@@ -176,6 +176,15 @@ public:
         else {
             // Gültiger Wert: Fehlerzähler zurücksetzen
             _errorCount = 0;
+            
+            // 85.0°C beim ersten Messwert ignorieren (DS18B20 Power-on default)
+            // Aber danach ist es ein gültiger Wert!
+            if (!_firstReadingDone && v == 85.0) {
+                _value = _lastValidValue;  // Behalte alten Wert
+                return;  // Speichere 85°C nicht als gültig
+            }
+            
+            _firstReadingDone = true;
             _lastValidValue = v;
             _value = v;
             
@@ -238,6 +247,40 @@ public:
         _maxTemperatureTime = 0;
     }
 
+    // OneWire-Adresse speichern
+    void SetDeviceAddress(const uint8_t* addr) {
+        if (addr != nullptr) {
+            memcpy(_deviceAddress, addr, 8);
+            _hasDeviceAddress = true;
+        }
+    }
+
+    // Adresse löschen (bei Sensor-Ersatz)
+    void ClearDeviceAddress() {
+        memset(_deviceAddress, 0, 8);
+        _hasDeviceAddress = false;
+    }
+
+    bool HasDeviceAddress() const { return _hasDeviceAddress; }
+    
+    const uint8_t* GetDeviceAddress() const { return _deviceAddress; }
+
+    // Vergleicht ob Adresse übereinstimmt
+    bool MatchesAddress(const uint8_t* addr) const {
+        if (!_hasDeviceAddress || addr == nullptr) return false;
+        return memcmp(_deviceAddress, addr, 8) == 0;
+    }
+
+    // Adresse als String für Anzeige
+    String GetDeviceAddressString() const {
+        if (!_hasDeviceAddress) return "Not assigned";
+        char buffer[24];
+        snprintf(buffer, sizeof(buffer), "%02X%02X%02X%02X%02X%02X%02X%02X",
+            _deviceAddress[0], _deviceAddress[1], _deviceAddress[2], _deviceAddress[3],
+            _deviceAddress[4], _deviceAddress[5], _deviceAddress[6], _deviceAddress[7]);
+        return String(buffer);
+    }
+
     tN2kSyncScheduler AlarmScheduler;
     tN2kSyncScheduler AlarmTextScheduler;
     tN2kSyncScheduler TemperatureScheduler;
@@ -274,9 +317,13 @@ private:
     time_t _maxTemperatureTime = 0;    // Zeitstempel des Maximumwerts
     
     // Fehlererkennung und Filterung
-    double _lastValidValue = -273.15;   // Letzter gültiger Messwert
-    uint8_t _errorCount = 0;            // Anzahl aufeinanderfolgender Fehler
-    static const uint8_t _maxErrorCount = 5;  // Schwellwert für persistenten Fehler
+    double _lastValidValue = -273.15;
+    uint8_t _errorCount = 0;
+    static const uint8_t _maxErrorCount = 5;
+    bool _firstReadingDone = false;  // ← NEU: Tracking für ersten Messwert
+    
+    uint8_t _deviceAddress[8] = {0};
+    bool _hasDeviceAddress = false;
 };
 
 class NMEAConfig : public iotwebconf::ParameterGroup {
