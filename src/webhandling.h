@@ -234,6 +234,9 @@ public:
             if (currentTime_ > 1577836800) {  // Unix timestamp für 2020-01-01 00:00:00
                 _maxTemperatureTime = currentTime_;
             }
+            else {
+                _maxTemperatureTime = 0;  // Ungültige Zeit
+            }
         }
     }
 
