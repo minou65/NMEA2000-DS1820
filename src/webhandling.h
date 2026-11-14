@@ -118,6 +118,7 @@ public:
         TemperatureScheduler(false, 1000, 0),
         AlarmScheduler(false, 500, random(0, 500)),
         AlarmTextScheduler(false, 10000, random(0, 10000)),
+		ProductScheduler(false, 60000, random(0, 10000)),
         Alert(
             N2kts_AlertTypeCaution,
             N2kts_AlertCategoryTechnical,
@@ -287,6 +288,7 @@ public:
     tN2kSyncScheduler AlarmScheduler;
     tN2kSyncScheduler AlarmTextScheduler;
     tN2kSyncScheduler TemperatureScheduler;
+	tN2kSyncScheduler ProductScheduler;
 
     tN2kAlert Alert;
     tN2kAlert FaultAlert;
