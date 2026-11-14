@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <ArduinoOTA.h>
 #include <Preferences.h>
 #include <WiFi.h>
 #include <esp_task_wdt.h>
@@ -16,9 +15,6 @@
 #include <N2kAlertTypes.h>
 
 #include <EventLogger.h>
-// WebSerial High Performance Mode - sendet Nachrichten sofort
-#define WSL_HIGH_PERF
-#include <WebSerial.h>
 
 extern void UpdateAlertSystem();
 extern const char* N2kEnumAlertTypeToStr(tN2kAlertType enumVal);
@@ -78,7 +74,7 @@ CustomHtmlFormatProvider* customHtmlFormatProvider = nullptr;
 void handleData(AsyncWebServerRequest* request);
 void handleRoot(AsyncWebServerRequest* request);
 void handlePost(AsyncWebServerRequest* request);
-void handleWebSerialCommand(uint8_t* data, size_t len);
+void handleWebCommand(const String& command);
 void handleReboot(AsyncWebServerRequest* request);
 void handleConfigSavedPage(iotwebconf::WebRequestWrapper* webRequestWrapper);
 void convertParams();
@@ -89,11 +85,6 @@ bool gParamsChanged = true;
 bool gSaveParams = false;
 bool ShouldReboot = false;
 uint8_t APModeOfflineTime = 0;
-
-// WebSerial state tracking
-static int previousConnectionCount = 0;
-static unsigned long lastConnectionChange = 0;
-static bool waitingToSendHistory = false;
 
 DNSServer dnsServer;
 AsyncWebServer server(80);
@@ -145,7 +136,18 @@ void wifiInit() {
     iotWebConf.setHtmlFormatProvider(customProvider);
 
     iotWebConf.setupUpdateServer(
-        [](const char* updatePath) { AsyncUpdater.setup(&server, updatePath); },
+        [](const char* updatePath) {
+            AsyncUpdater.onBegin([](const String& message) {
+                LOG_INFO("%s", message.c_str());
+                });
+            AsyncUpdater.onEnd([](const String& message) { LOG_OK("%s", message.c_str()); });
+            AsyncUpdater.OnError([](const String& message) {
+                LOG_ERROR("%s", message.c_str());
+                });
+            AsyncUpdater.onProgress([](const String& message) { LOG_INFO("%s", message.c_str()); });
+            AsyncUpdater.onLog([](const String& message) { WEB_LOG_INFO("%s", message.c_str()); });
+            AsyncUpdater.setup(&server, updatePath);
+        },
         [](const char* userName, char* password) { AsyncUpdater.updateCredentials(userName, password); });
 
     iotWebConf.setConfigSavedCallback(&configSaved);
@@ -170,71 +172,30 @@ void wifiInit() {
     server.on("/data", HTTP_GET, [](AsyncWebServerRequest* request) { handleData(request); });
     server.on("/post", HTTP_ANY, [](AsyncWebServerRequest* request) { handlePost(request); });
     server.on("/reboot", HTTP_GET, [](AsyncWebServerRequest* request) { handleReboot(request); });
-    
-    if (APModeOfflineTime > 0) {
-        APModeTimer.start(APModeOfflineTime * 60 * 1000);
+
+      // EventLogger Web initialisieren
+    bool webOk_ = eventLogger.beginWeb(&server, "/events");
+    if (!webOk_) {
+        eventLogger.log("EventLogger.beginWeb failed", EventLogger::Status::ERROR, 1);
     }
 
-    // WebSerial Initialisierung
-    WebSerial.begin(&server, "/webserial");
-
-    // Handler für eingehende Nachrichten
-    WebSerial.onMessage(handleWebSerialCommand);
-
-    // Callback für Live-Updates registrieren
-    eventLogger.setLiveCallback([](const EventLogger::Event& event_) {
-        WebSerial.println(eventLogger.formatEvent(event_));
-        }
-    );
+    eventLogger.setCommandCallback([](const String& command_) {
+        handleWebCommand(command_);
+        });
 
     server.onNotFound([](AsyncWebServerRequest* request) {
         AsyncWebRequestWrapper asyncWebRequestWrapper_(request);
         iotWebConf.handleNotFound(&asyncWebRequestWrapper_);
         });
-
-    eventLogger.log(F("Web server successfully initialized"));
+    
+    if (APModeOfflineTime > 0) {
+        APModeTimer.start(APModeOfflineTime * 60 * 1000);
+    }
 }
 
 void wifiLoop() {
-    // -- doLoop should be called as frequently as possible.
     iotWebConf.doLoop();
-    WebSerial.loop();
-
-    // Connection Count prüfen
-    int currentConnectionCount = WebSerial.getConnectionCount();
-
-    // Verbindungsänderung erkannt
-    if (currentConnectionCount != previousConnectionCount) {
-        if (currentConnectionCount > 0) {
-            // Neue Verbindung
-            waitingToSendHistory = true;
-            lastConnectionChange = millis();
-        }
-        previousConnectionCount = currentConnectionCount;
-    }
-
-
-    // Nach 500ms Historie senden
-    if (waitingToSendHistory && currentConnectionCount > 0 && (millis() - lastConnectionChange) >= 500) {
-        waitingToSendHistory = false;
-
-        WebSerial.println();
-        WebSerial.println("=== WebSerial ===");
-        WebSerial.println("Type 'help' for available commands");
-        WebSerial.println();
-
-        auto events_ = eventLogger.getEvents();
-        if (!events_.empty()) {
-            WebSerial.println("=== Event History (" + String(events_.size()) + " events) ===");
-            for (const auto& event_ : events_) {
-                WebSerial.println(eventLogger.formatEvent(event_));
-            }
-            WebSerial.println();
-        }
-        WebSerial.println("=== Live Events ===");
-        WebSerial.println();
-    }
-    
+   
     if (gSaveParams) {
         eventLogger.log(F("Parameters are changed,save them"));
 
@@ -248,110 +209,16 @@ void wifiLoop() {
         APModeTimer.stop();
     }
     
-    if (AsyncUpdater.isFinished()) {
-        eventLogger.log(F("Firmware update finished"));
-        
-        // Watchdog vor Reboot nur deaktivieren, wenn er aktiv ist
-        esp_err_t wdt_status_ = esp_task_wdt_status(NULL);
-        if (wdt_status_ == ESP_OK) {
-            eventLogger.log(F("Disabling watchdog before reboot"));
-            esp_task_wdt_deinit();
-        }
-        
-        ShouldReboot = true;
-    }
-    
-    if (ShouldReboot) {
-        eventLogger.log(F("Rebooting..."));
+    if (ShouldReboot || AsyncUpdater.isFinished()) {
+        LOG_DEBUG("Rebooting the device...");
         delay(1000);
         ESP.restart();
     }
 }
 
 void wifiConnected() {
-    // ArduinoOTA konfigurieren
-    ArduinoOTA.setHostname(thingName);
-    
-    // Optional: Passwort setzen (sollte mit IotWebConf-Passwort übereinstimmen)
-    // ArduinoOTA.setPassword("admin");
-    
-    ArduinoOTA.onStart([]() {
-        String type_;
-        if (ArduinoOTA.getCommand() == U_FLASH) {
-            type_ = "sketch";
-        } else {  // U_SPIFFS
-            type_ = "filesystem";
-        }
-        eventLogger.log("Start updating " + type_);
-        
-        // Watchdog deaktivieren während OTA
-        // Zuerst alle Tasks vom Watchdog abmelden
-        esp_err_t wdt_status_ = esp_task_wdt_status(NULL);
-        if (wdt_status_ == ESP_OK) {
-            // Task vom Watchdog abmelden (aktueller Task = loop Task)
-            esp_task_wdt_delete(NULL);
-            eventLogger.log(F("Current task unsubscribed from watchdog"));
-        }
-        
-        // Auch loop2 Task vom Watchdog abmelden
-        extern TaskHandle_t TaskHandle;
-        if (TaskHandle != NULL) {
-            esp_err_t loop2_status_ = esp_task_wdt_status(TaskHandle);
-            if (loop2_status_ == ESP_OK) {
-                esp_task_wdt_delete(TaskHandle);
-                eventLogger.log(F("loop2 task unsubscribed from watchdog"));
-            }
-        }
-        
-        // Jetzt kann der Watchdog sicher deinitialisiert werden
-        esp_task_wdt_deinit();
-        eventLogger.log(F("Watchdog disabled for OTA"));
-    });
-    
-    ArduinoOTA.onEnd([]() {
-        eventLogger.log(F("End"));   
-    });
-    
-    ArduinoOTA.onProgress([](unsigned int progress_, unsigned int total_) {
-        eventLogger.logf("Progress: %u%%\r", (progress_ / (total_ / 100)));
-    });
-    
-    ArduinoOTA.onError([](ota_error_t error_) {
-        eventLogger.logf("Error[%u]: ", error_);
-        if (error_ == OTA_AUTH_ERROR) {
-            eventLogger.log(F("Auth Failed"));
-        } else if (error_ == OTA_BEGIN_ERROR) {
-            eventLogger.log(F("Begin Failed")); 
-        } else if (error_ == OTA_CONNECT_ERROR) {
-            eventLogger.log(F("Connect Failed"));
-        } else if (error_ == OTA_RECEIVE_ERROR) {
-            eventLogger.log(F("Receive Failed"));
-        } else if (error_ == OTA_END_ERROR) {
-            eventLogger.log(F("End Failed"));
-        }
-        
-        // Watchdog wieder aktivieren bei Fehler
-        eventLogger.log(F("Re-enabling watchdog after error"));
-        esp_task_wdt_config_t wdt_config_ = {
-            .timeout_ms = 30000,
-            .idle_core_mask = 0,
-            .trigger_panic = true
-        };
-        esp_task_wdt_init(&wdt_config_);
-        
-        // Aktuelle Tasks wieder anmelden
-        esp_task_wdt_add(NULL);
-        
-        extern TaskHandle_t TaskHandle;
-        if (TaskHandle != NULL) {
-            esp_task_wdt_add(TaskHandle);
-        }
-        eventLogger.log(F("Watchdog re-enabled"));
-    });
-    
-    ArduinoOTA.begin();
-    eventLogger.log(F("ArduinoOTA started"));
-    eventLogger.log("IP address: " + WiFi.localIP().toString());
+    WiFi.setSleep(false);
+    LOG_INFO("WiFi modem sleep disabled");  
 }
 
 void handleData(AsyncWebServerRequest* request) {
@@ -601,8 +468,8 @@ void handleRoot(AsyncWebServerRequest* request) {
     // Footer
     response_->print(fp_.addNewLine(2));
     response_->print(fp_.getHtmlTable());
-    response_->print(fp_.getHtmlTableRowText("Open <a href='/config'>configuration page</a>.", ""));
-    response_->print(fp_.getHtmlTableRowText("Open <a href='/webserial' target='_blank'>WebSerial Console</a> for live logs.", ""));
+    response_->print(fp_.getHtmlTableRowText("Go to <a href = 'config'>configure page</a> to change configuration."));
+    response_->print(fp_.getHtmlTableRowText("Go to <a href = 'events'>event log</a> to view the event history."));
     response_->print(fp_.getHtmlTableRowText("<div style='font-size: .6em;'>Version '" + String(Version) + "'</div>", ""));
     response_->print(fp_.getHtmlTableEnd());
 
@@ -614,7 +481,6 @@ void convertParams() {
     gN2KInstance = Config.GetInstance();
     gN2KSID = Config.GetSID();
     APModeOfflineTime = atoi(APModeOfflineValue);
-    ArduinoOTA.setHostname(iotWebConf.getThingName());
 }
 
 void configSaved() {
@@ -624,27 +490,30 @@ void configSaved() {
 
 void handlePost(AsyncWebServerRequest* request) {
     if (request->hasParam("reset", true)) {
-        Serial.println(F("Resetting to factory defaults..."));
-
         Config.applyDefaultValue();
         resetAllSensors();
 
         iotWebConf.saveConfig();
+        LOG_OK("Factory defaults applied");
 
         request->send(200, "text/plain", "OK");
+        return;
     }
-    else if (request->hasParam("resetmax", true)) {
-        eventLogger.log(F("Resetting maximum temperature values"));
+
+    if (request->hasParam("resetmax", true)) {
 
         Sensor* sensor_ = &Sensor1;
         while (sensor_ != nullptr) {
             sensor_->ResetMaxTemperature();
             sensor_ = sensor_->getNext();
         }
+        LOG_OK("Maximum temperature values reset");
 
         request->send(200, "text/plain", "OK");
+        return;
     }
-    else if (request->hasParam("resetalerts", true)) {
+    
+    if (request->hasParam("resetalerts", true)) {
         eventLogger.log(F("Resetting all alerts"));
 
         Sensor* sensor_ = &Sensor1;
@@ -657,54 +526,54 @@ void handlePost(AsyncWebServerRequest* request) {
         }
 
         request->send(200, "text/plain", "OK");
-    }
-    else {
-        request->send(400, "text/plain", "Bad Request");
-    }
-}
-
-void handleWebSerialCommand(uint8_t* data, size_t len) {
-
-    // Kommando in String umwandeln
-    String command_ = "";
-    for (size_t i_ = 0; i_ < len; i_++) {
-        command_ += (char)data[i_];
-    }
-    command_.trim();
-
-    // Leere Kommandos ignorieren
-    if (command_.length() == 0) {
         return;
     }
 
-    eventLogger.logf("WebSerial: %s", command_.c_str());
+    request->send(400, "text/plain", "Bad Request");
+}
 
-    // Kommandos verarbeiten
-    if (command_ == "help") {
-        WebSerial.println("=== Available Commands ===");
-        WebSerial.println("  help     - Show this help");
-        WebSerial.println("  reboot   - Reboot the device");
-        WebSerial.println("  clear    - Clear event buffer");
-        WebSerial.println("  status   - Show system status");
-        WebSerial.println("  history  - Show all buffered events");
-		WebSerial.println("  verbose  - Toggle verbose logging (On/Off)");
+void handleWebCommand(const String& command) {
+    String cmd_ = command;
+    cmd_.trim();
+    cmd_.toLowerCase();
+
+    if (cmd_.length() == 0) {
+        return;
     }
-    else if (command_ == "reboot") {
-        WebSerial.println(">>> Rebooting device...");
-        eventLogger.log("Reboot requested via WebSerial");
+
+    eventLogger.logf("Web command: %s", cmd_.c_str());
+
+    if (cmd_ == "help") {
+        WEB_LOG_INFO_AT(0, "=== Available Commands ===");
+        WEB_LOG_INFO_AT(1, "help     - Show this help");
+        WEB_LOG_INFO_AT(1, "reboot   - Reboot the device");
+        WEB_LOG_INFO_AT(1, "clear    - Clear event buffer");
+        WEB_LOG_INFO_AT(1, "status   - Show system status");
+        WEB_LOG_INFO_AT(1, "history  - Show all buffered events");
+        WEB_LOG_INFO_AT(1, "verbose  - Toggle verbose logging (On/Off)");
+        return;
+    }
+
+    if (cmd_ == "reboot") {
+        WEB_LOG_INFO_AT(0, "Rebooting device...");
+        eventLogger.log("Reboot requested via web command");
         delay(100);
         ShouldReboot = true;
+        return;
     }
-    else if (command_ == "clear") {
+
+    if (cmd_ == "clear") {
         eventLogger.clear();
-        WebSerial.println(">>> Event buffer cleared");
+        WEB_LOG_INFO_AT(0, "Event buffer cleared");
+        return;
     }
-    else if (command_ == "status") {
-        WebSerial.println("=== System Status ===");
-        WebSerial.println("Version: " + String(Version));
-        WebSerial.println("WiFi SSID: " + String(WiFi.SSID()));
-        WebSerial.println("WiFi RSSI: " + String(WiFi.RSSI()) + " dBm");
-        WebSerial.println("IP Address: " + WiFi.localIP().toString());
+
+    if (cmd_ == "status") {
+        WEB_LOG_INFO_AT(0, "=== System Status ===");
+        WEB_LOG_INFO_AT(1, "Version: %s", Version);
+        WEB_LOG_INFO_AT(1, "WiFi SSID: %s", WiFi.SSID().c_str());
+        WEB_LOG_INFO_AT(1, "WiFi RSSI: %d dBm", WiFi.RSSI());
+        WEB_LOG_INFO_AT(1, "IP Address: %s", WiFi.localIP().toString().c_str());
 
         unsigned long uptime_ = millis() / 1000;
         unsigned long days_ = uptime_ / 86400;
@@ -712,32 +581,36 @@ void handleWebSerialCommand(uint8_t* data, size_t len) {
         unsigned long minutes_ = (uptime_ % 3600) / 60;
         unsigned long seconds_ = uptime_ % 60;
 
-        WebSerial.printf("Uptime: %lud %02lu:%02lu:%02lu", days_, hours_, minutes_, seconds_);
-        WebSerial.println("Free Heap: " + String(ESP.getFreeHeap()) + " bytes");
-        WebSerial.println("Events in buffer: " + String(eventLogger.count()) + "/" + String(EVENT_BUFFER_SIZE));
+        WEB_LOG_INFO_AT(1, "Uptime: %lud %02lu:%02lu:%02lu", days_, hours_, minutes_, seconds_);
+        WEB_LOG_INFO_AT(1, "Free Heap: %u bytes", ESP.getFreeHeap());
+        WEB_LOG_INFO_AT(1, "Events in buffer: %u/%u",
+            static_cast<unsigned int>(eventLogger.count()), static_cast<unsigned int>(EVENT_BUFFER_SIZE));
+        return;
     }
-    else if (command_ == "history") {
+
+    if (cmd_ == "history") {
         auto events_ = eventLogger.getEvents();
-        WebSerial.println("=== Event History (" + String(events_.size()) + " events) ===");
+        WEB_LOG_INFO_AT(0, "=== Event History (%u events) ===", static_cast<unsigned int>(events_.size()));
         if (events_.empty()) {
-            WebSerial.println("(No events in buffer)");
+            WEB_LOG_INFO_AT(1, "(No events in buffer)");
         }
         else {
             for (const auto& event_ : events_) {
-                WebSerial.println(eventLogger.formatEvent(event_));
+                String formattedEvent_ = eventLogger.formatEvent(event_);
+                WEB_LOG_INFO_AT(1, "%s", formattedEvent_.c_str());
             }
         }
-    }
-    else if (command_ == "verbose") {
-		debugMode = !debugMode;
-        WebSerial.println(">>> Verbose logging is now " + String(debugMode ? "enabled" : "disabled"));
-	}
-    else {
-        WebSerial.println(">>> Unknown command: " + command_);
-        WebSerial.println(">>> Type 'help' for available commands");
+        return;
     }
 
-	WebSerial.flush();
+    if (cmd_ == "verbose") {
+        debugMode = !debugMode;
+        WEB_LOG_INFO_AT(0, "Verbose logging is now %s", debugMode ? "enabled" : "disabled");
+        return;
+    }
+
+    WEB_LOG_INFO_AT(0, "Unknown command: %s", cmd_.c_str());
+    WEB_LOG_INFO_AT(0, "Type 'help' for available commands");
 }
 
 void handleReboot(AsyncWebServerRequest* request) {

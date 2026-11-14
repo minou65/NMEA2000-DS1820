@@ -10,6 +10,9 @@
 
 #include "Config.h"
 #include "common.h"
+#include "webhandling.h"
+
+#include <build_version.h>
 
 #include <Arduino.h>
 #include <OneWire.h>
@@ -26,8 +29,10 @@
 #include <RebootManager.h>
 #include <EventLogger.h>
 
-#include "webhandling.h"
-#include "version.h"
+// Forward declarations for NMEA2000 message parsing functions
+void SendIdentityMessages(const char* reason_);
+void SaveSensorAddresses();
+void loop2(void* parameter);
 
 bool debugMode = false;
 
@@ -779,34 +784,39 @@ void setup() {
     uint8_t macBased_ = macSum_ % 20;  // 0-19 → 20 Slots
     uint8_t baseAddress_ = 20 + (macBased_ * 5);  // 20, 25, 30, 35, ..., 115
     
-    eventLogger.logf("Device MAC: %02X:%02X:%02X:%02X:%02X:%02X",
+    LOG_DEBUG("Device MAC: %02X:%02X:%02X:%02X:%02X:%02X",
         mac_[0], mac_[1], mac_[2], mac_[3], mac_[4], mac_[5]);
-    eventLogger.logf("MAC sum: %u (0x%02X + 0x%02X + 0x%02X)",
+    LOG_DEBUG("MAC sum: %u (0x%02X + 0x%02X + 0x%02X)",
         macSum_, mac_[3], mac_[4], mac_[5]);
-    eventLogger.logf("Calculated slot: %u (out of 20 slots)", macBased_);
-    eventLogger.logf("Base N2K address: %u (device addresses: %u-%u)",
+    LOG_DEBUG("Calculated slot: %u (out of 20 slots)", macBased_);
+    LOG_DEBUG("Base N2K address: %u (device addresses: %u-%u)",
         baseAddress_, baseAddress_, baseAddress_ + 3);
     
     // Startup-Delay: 1 Sekunde pro Slot (max 19 Sekunden)
     uint32_t randomDelay_ = macBased_ * 1000;
-    eventLogger.logf("Startup delay: %lu ms (ensures collision-free boot)", randomDelay_);
+    LOG_DEBUG("Startup delay: %lu ms (ensures collision-free boot)", randomDelay_);
     delay(randomDelay_);
 
     // init sensors
-    eventLogger.log(F("Initializing sensor..."));
+    LOG_INFO("Initializing sensor...");
     sensors.begin(); 
     sensors.setResolution(10);
-    eventLogger.log(F("Resolution set to 10-bit"));
+    LOG_DEBUG_AT(1,"Resolution set to 10-bit");
 
     DeviceCount = sensors.getDeviceCount();
-    eventLogger.logf("Found %u DS18B20 devices on the bus", DeviceCount);
+    LOG_DEBUG_AT(1,"Found %u DS18B20 devices on the bus", DeviceCount);
 
     // Verkette die Sensor-Objekte manuell VOR der Discovery
-    eventLogger.log(F("Linking sensor objects..."));
     Sensor1.setNext(&Sensor2);
     Sensor2.setNext(&Sensor3);
     Sensor3.setNext(&Sensor4);
+    LOG_OK("Sensor objects linked");
 
+        // init wifi
+    wifiInit();
+    LOG_OK("WiFi initialized");
+
+    LOG_INFO("starting NMEA 2000 initialization...");
     // Load N2K source addresses from Preferences
     Preferences prefs_;
     prefs_.begin("n2k", false);  // read-write
@@ -822,8 +832,7 @@ void setup() {
         uint8_t defaultAddr_ = baseAddress_ + i_;
         if (defaultAddr_ > 251) {
             defaultAddr_ = 251;  // NMEA2000 max address
-            eventLogger.logf("WARNING: Calculated address %u exceeds 251, capping at 251",
-                baseAddress_ + i_);
+            LOG_WARN_AT(1, "Calculated address %u exceeds 251, capping at 251", baseAddress_ + i_);
         }
         
         uint8_t val_ = prefs_.getUChar(key_, 255);  // 255 = nicht gesetzt
@@ -833,8 +842,7 @@ void setup() {
             gN2KSource[i_] = defaultAddr_;
             prefs_.putUChar(key_, defaultAddr_);
             prefsChanged_ = true;
-            eventLogger.logf("First boot: Set N2KSource%u = %u (MAC-based)",
-                (unsigned)i_, defaultAddr_);
+            LOG_DEBUG_AT(1, "First boot: Set N2KSource%u = %u (MAC-based)", (unsigned)i_, defaultAddr_);
         } else {
             gN2KSource[i_] = val_;
         }
@@ -842,29 +850,12 @@ void setup() {
     
     prefs_.end();
     
-    eventLogger.logf("Using N2K addresses: %u, %u, %u, %u",
-        gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
-
-    // init wifi
-    eventLogger.log(F("Initializing WiFi..."));
-    wifiInit();
+    LOG_DEBUG_AT(1, "Using N2K addresses: %u, %u, %u, %u", gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
 
     LoadSensorAddresses();
     DiscoverAndAssignSensors();
 
-    // Create GetTemperature task for core 0, loop() runs on core 1
-    xTaskCreatePinnedToCore(
-        loop2,
-        "TaskHandle",
-        10000,
-        NULL,
-        0,
-        &TaskHandle,
-        0
-    );
-
     // Reserve enough buffer for sending all messages
-    eventLogger.log(F("Setting up NMEA2000..."));
     NMEA2000.SetN2kCANMsgBufSize(10);
     NMEA2000.SetN2kCANReceiveFrameBufSize(250);
     NMEA2000.SetN2kCANSendFrameBufSize(250);
@@ -878,14 +869,13 @@ void setup() {
         }
         sensor_ = (Sensor*)sensor_->getNext();
     }
-
-    eventLogger.logf("Found %u active sensors", activeDeviceCount_);
+    LOG_INFO_AT(1, "Found %u active sensors", activeDeviceCount_);
     
     // Warnung wenn physische Sensoren von Konfiguration abweichen
     if (activeDeviceCount_ != DeviceCount) {
-        eventLogger.logf("WARNING: %u physical DS18B20 sensors found, but %u configured as active",
+        LOG_WARN_AT(1, "%u physical DS18B20 sensors found, but %u configured as active",
             DeviceCount, activeDeviceCount_);
-        eventLogger.log("Sensors may need reconfiguration via web interface");
+        LOG_WARN_AT(2, "Sensors may need reconfiguration via web interface");
     }
     
     NMEA2000.SetDeviceCount(activeDeviceCount_);
@@ -893,41 +883,30 @@ void setup() {
     NMEA2000.SetOnOpen(OnN2kOpen);
     NMEA2000.SetMsgHandler(handleN2kMessages);
 
-#ifdef DEBUG_NMEA_MSG
-    Serial.begin(115200);
-    NMEA2000.SetForwardStream(&Serial);
-
-#ifdef DEBUG_NMEA_MSG_ASCII
-    NMEA2000.SetForwardType(tNMEA2000::fwdt_Text);
-#endif
-
-#ifdef  DEBUG_NMEA_Actisense
-    NMEA2000.SetDebugMode(tNMEA2000::dm_Actisense);
-#endif
-
-#else
     NMEA2000.EnableForward(false);
-#endif
 
     NMEA2000.SetMode(tNMEA2000::N2km_NodeOnly);
 
     CreateDevicesForActiveSensors();
 
-    eventLogger.log(F("Opening NMEA2000..."));
     NMEA2000.Open();
 
-    eventLogger.log(F("NMEA2000 opened - sending initial identity PGNs"));
+    LOG_OK_AT(1, "NMEA2000 opened - sending initial identity PGNs");
     SendIdentityMessages("startup");
 
+    // Create GetTemperature task for core 0, loop() runs on core 1
+    xTaskCreatePinnedToCore(
+        loop2,
+        "TaskHandle",
+        10000,
+        NULL,
+        0,
+        &TaskHandle,
+        0
+    );
     esp_task_wdt_add(NULL);
 
-    eventLogger.log(F("========================================"));
-    eventLogger.log(F("NMEA2000 started"));
-    eventLogger.logf("Base address: %u, Using addresses: %u, %u, %u, %u", 
-        baseAddress_, gN2KSource[0], gN2KSource[1], gN2KSource[2], gN2KSource[3]);
-    eventLogger.log(F("Listening for GPS time on NMEA2000 bus"));
-    eventLogger.log(F("Setup complete"));
-    eventLogger.log(F("========================================"));
+    LOG_OK("setup complete");
 }
 
 void loop() {
@@ -966,7 +945,7 @@ void loop() {
     }
 
     if (TimeSet && (millis() - LastTimeUpdate > 3600000)) {
-        eventLogger.log(F("Warning: No time update received for 1 hour"));
+        LOG_WARN("No time update received for 1 hour");
         TimeSet = false;
     }
 
@@ -1000,8 +979,7 @@ void loop2(void* parameter) {
                     // Lese direkt per OneWire-Adresse
                     temp_ = sensors.getTempC(sensor_->GetDeviceAddress());
                 } else {
-                    eventLogger.logf("WARNING: Sensor%u is active but has no device address assigned",
-                        sensorNum_);
+                    LOG_WARN("Sensor%u is active but has no device address assigned", sensorNum_);
                 }
                 
                 double previousMax_ = sensor_->GetMaxTemperature();
@@ -1023,8 +1001,7 @@ void loop2(void* parameter) {
                         char timeStr_[64];
                         struct tm* timeinfo_ = localtime(&maxTime_);
                         strftime(timeStr_, sizeof(timeStr_), "%Y-%m-%d %H:%M:%S", timeinfo_);
-                        eventLogger.logf("New max temp %.2f°C saved for Sensor%u at %s", 
-                            temp_, sensorNum_, timeStr_);
+                        LOG_INFO("New max temp %.2f°C saved for Sensor%u at %s", temp_, sensorNum_, timeStr_);
                     }
                     pref_.end();
                 }

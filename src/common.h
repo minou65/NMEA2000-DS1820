@@ -1,6 +1,8 @@
 #ifndef _COMMON_h
 #define _COMMON_h
 
+#include <Arduino.h>
+
 extern uint8_t gN2KInstance;
 extern uint8_t gN2KSID;
 extern uint8_t gN2KSource[];
