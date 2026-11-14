@@ -223,10 +223,13 @@ void CheckN2kSourceAddressChange() {
             char key_[16];
             snprintf(key_, sizeof(key_), "N2KSource%u", (unsigned)i_);
             prefs_.putUChar(key_, gN2KSource[i_]);
-            eventLogger.logf("Saved N2KSource%u = %u to Preferences", 
+            eventLogger.logf("Saved N2KSource%u = %u to Preferences",
                 (unsigned)i_, gN2KSource[i_]);
         }
         prefs_.end();
+
+        eventLogger.log(F("N2K source change detected - resending identity PGNs"));
+        SendIdentityMessages("source address change");
     }
 }
 
@@ -527,6 +530,7 @@ void CreateDevicesForActiveSensors() {
             sensor_->AlarmScheduler.UpdateNextTime();
             sensor_->AlarmTextScheduler.UpdateNextTime();
             sensor_->TemperatureScheduler.UpdateNextTime();
+			sensor_->ProductScheduler.UpdateNextTime();
             eventLogger.logf("Initialized schedulers for sensor %u", deviceIndex_);
 
             deviceIndex_++;
@@ -538,8 +542,11 @@ void CreateDevicesForActiveSensors() {
 }
 
 void SendTemperatur(Sensor* sensor, uint8_t deviceIndex) {
+    if (!sensor->isActive()) {
+        return;
+    }
     
-    if (sensor->isActive() && sensor->TemperatureScheduler.IsTime()) {
+    if (sensor->TemperatureScheduler.IsTime()) {
         sensor->TemperatureScheduler.UpdateNextTime();
 
         tN2kMsg N2kMsg_;
@@ -563,12 +570,11 @@ void SendTemperatur(Sensor* sensor, uint8_t deviceIndex) {
             NMEA2000.SendMsg(N2kMsg_, deviceIndex);
         }
 
-        static unsigned long lastInfoSent_[4] = {0, 0, 0, 0};
-        if (millis() - lastInfoSent_[deviceIndex] > 60000) {
+        if (sensor->ProductScheduler.IsTime()) {
+            sensor->ProductScheduler.UpdateNextTime();
             NMEA2000.SendProductInformation(deviceIndex);
             NMEA2000.SendConfigurationInformation(deviceIndex);
-            lastInfoSent_[deviceIndex] = millis();
-        }
+		}
 
         if (debugMode) {
             eventLogger.logf("Sent temperature %.2f°C for sensor %u (source %u, sid %u)", 
@@ -578,8 +584,28 @@ void SendTemperatur(Sensor* sensor, uint8_t deviceIndex) {
     }
 }
 
+void SendProductAndConfiguration(Sensor* sensor, uint8_t deviceIndex) {
+    if (!sensor->isActive()) {
+        return;
+    }
+
+    if (sensor->ProductScheduler.IsTime()) {
+        sensor->ProductScheduler.UpdateNextTime();
+        NMEA2000.SendProductInformation(deviceIndex);
+        NMEA2000.SendConfigurationInformation(deviceIndex);
+
+        if (debugMode) {
+            eventLogger.logf("Sent product/configuration info for device %u", deviceIndex);
+        }
+    }
+}
+
 void SendAlert(Sensor* sensor, uint8_t deviceIndex) {
-    if (sensor->isActive() && sensor->AlarmScheduler.IsTime()) {
+    if (!sensor->isActive()) {
+        return;
+    }
+
+    if (sensor->AlarmScheduler.IsTime()) {
         sensor->AlarmScheduler.UpdateNextTime();
 
         tN2kMsg N2kMsg_;
@@ -601,7 +627,11 @@ void SendAlert(Sensor* sensor, uint8_t deviceIndex) {
 }
 
 void SendAlertText(Sensor* sensor, uint8_t deviceIndex) {
-    if (sensor->isActive() && sensor->AlarmTextScheduler.IsTime()) {
+    if (!sensor->isActive()) {
+        return;
+    }
+
+    if (sensor->AlarmTextScheduler.IsTime()) {
         sensor->AlarmTextScheduler.UpdateNextTime();
 
         tN2kMsg N2kMsg_;
@@ -622,10 +652,29 @@ void SendAlertText(Sensor* sensor, uint8_t deviceIndex) {
     }
 }
 
-void SetInstallationDescription(Sensor* sensor, uint8_t deviceIndex) {
-    if (sensor->isActive()) {
-        NMEA2000.SetInstallationDescription1(sensor->GetLocationValue(), deviceIndex);
+void SendIdentityMessages(const char* reason_) {
+    Sensor* sensor_ = &Sensor1;
+    uint8_t deviceIndex_ = 0;
+
+    while (sensor_ != nullptr) {
+        if (sensor_->isActive()) {
+            NMEA2000.SendProductInformation(deviceIndex_);
+            NMEA2000.SendConfigurationInformation(deviceIndex_);
+            deviceIndex_++;
+        }
+        sensor_ = (Sensor*)sensor_->getNext();
     }
+
+    eventLogger.logf("Sent product/configuration information for %u active devices (%s)",
+        deviceIndex_, reason_);
+}
+
+void SetInstallationDescription(Sensor* sensor, uint8_t deviceIndex) {
+    if (!sensor->isActive()) {
+        return;
+    }
+
+    NMEA2000.SetInstallationDescription1(sensor->GetLocationValue(), deviceIndex);
 }
 
 void ParseAlertResponse(const tN2kMsg& N2kMsg) {
@@ -867,6 +916,9 @@ void setup() {
     eventLogger.log(F("Opening NMEA2000..."));
     NMEA2000.Open();
 
+    eventLogger.log(F("NMEA2000 opened - sending initial identity PGNs"));
+    SendIdentityMessages("startup");
+
     esp_task_wdt_add(NULL);
 
     eventLogger.log(F("========================================"));
@@ -884,19 +936,25 @@ void loop() {
     Sensor* sensor_ = &Sensor1;
     uint8_t deviceIndex_ = 0;
     while (sensor_ != nullptr) {
-        if (sensor_->isActive()) {
-            SendTemperatur(sensor_, deviceIndex_);
-            if (gParamsChanged) {
-                SetInstallationDescription(sensor_, deviceIndex_);
-            }
-
-            if ((sensor_->GetThresholdMethod() > 0) && (sensor_->GetSourceId() > 0)) {
-                SendAlert(sensor_, deviceIndex_);
-                SendAlertText(sensor_, deviceIndex_);
-            }
-
-            deviceIndex_++;
+        if (!sensor_->isActive()) {
+            sensor_ = (Sensor*)sensor_->getNext();
+            continue;
         }
+
+        SendTemperatur(sensor_, deviceIndex_);
+
+        if (sensor_->GetThresholdMethod() > 0) {
+            SendAlert(sensor_, deviceIndex_);
+            SendAlertText(sensor_, deviceIndex_);
+        }
+
+        SendProductAndConfiguration(sensor_, deviceIndex_);
+
+        if (gParamsChanged) {
+            SetInstallationDescription(sensor_, deviceIndex_);
+        }
+
+        deviceIndex_++;
         sensor_ = (Sensor*)sensor_->getNext();
     }
 

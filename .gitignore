@@ -382,6 +382,7 @@ FodyWeavers.xsd
 
 # VS Code files for those working on multiple tools
 .vscode/*
+!.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
@@ -399,7 +400,27 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
-settings.json
-/src/NMEA2000-DS1820.ino.nodemcu-32s.bin
 .vscode/settings.json
-src/board.txt
+/img/Thumbs.db
+/src/Powerbox.ino.nodemcu-32s.bin
+doc/LED-Time-Control-TC420.pdf
+icon/icons8-aquarium-office-l-favicons/web/Thumbs.db
+
+
+# PlatformIO
+.pio/
+.piolibdeps/
+.clangd/
+
+# Lokale Python-Umgebungen (falls später verwendet)
+.venv/
+venv/
+
+# PlatformIO Coredumps
+coredump.*
+
+# Lokale Build-Artefakte
+*.elf
+*.map
+*.bin
+*.hex
